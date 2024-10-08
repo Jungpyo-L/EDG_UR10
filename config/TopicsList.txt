@@ -1,0 +1,2 @@
+/endEffectorPose
+/netft_data

@@ -1,0 +1,16 @@
+<launch>
+        <!-- Launch data Logger -->
+        <node pkg="edg_ur10"           type="robotStatePublisher.py"                 name="robotStatePublisher"            output="screen" />
+
+        <!-- This will be replaed by the real Node execution -->
+        <arg name="ATI_ip" default="192.168.1.42" />        
+        <node pkg="netft_utils"           type="netft_node"                 name="netft_node"            output="screen" args="$(arg ATI_ip)" />
+
+        <!-- Launch data Logger -->
+        <node pkg="edg_ur10"           type="data_logger.py"                 name="data_logger"            output="screen" />
+
+        <!-- This launch a graphing tool which shows the 10 last seconds of the values coming from the Force/Torque sensor.  -->
+	<node pkg="rqt_multiplot" type="rqt_multiplot" name="rqt_multiplot_node" output="screen" args="--multiplot-run-all --multiplot-config $(find edg_ur10)/launch/rqt_multiplot_ATI.xml" />
+
+</launch>
+
