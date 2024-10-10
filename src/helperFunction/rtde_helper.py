@@ -34,8 +34,6 @@ class rtdeHelp(object):
 
         self.checkDistThres = 1e-3
         self.checkQuatThres = 10e-3
-        # transforamtino matrix between moveit and rtde
-        self.transformation = create_transform_matrix(np.array([[-1, 0, 0], [0, -1, 0], [0, 0, 1]]), [0, 0, 0])
         self.speed = speed
         self.acc = acc
 
@@ -60,31 +58,6 @@ class rtdeHelp(object):
                 w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
                 w1 * y2 + y1 * w2 + z1 * x2 - x1 * z2,
                 w1 * z2 + z1 * w2 + x1 * y2 - y1 * x2)
-
-
-    def getPoseObj(self, goalPosition, setOrientation):
-        Pose = PoseStamped()  
-        
-        Pose.header.frame_id = "base_link"
-        Pose.pose.orientation.x = setOrientation[0]
-        Pose.pose.orientation.y = setOrientation[1]
-        Pose.pose.orientation.z = setOrientation[2]
-        Pose.pose.orientation.w = setOrientation[3]
-        
-        Pose.pose.position.x = goalPosition[0]
-        Pose.pose.position.y = goalPosition[1]
-        Pose.pose.position.z = goalPosition[2]
-        
-        return Pose
-
-    def setCalibrationMatrix(self):
-        g1 = get_Tmat_from_Pose(self.getCurrentTCPPose())
-        g2 = get_Tmat_from_Pose(self.getCurrentTCPPose())
-        # gt = np.matmul(np.linalg.inv(g1), g2)
-        gt = np.matmul(g1, np.linalg.inv(g2))
-        print("Transformation matrix between pose and TCPpose")
-        print(gt)
-        self.transformation = gt
     
     def getRotVector(self, goalPose):
         qx = goalPose.pose.orientation.x
@@ -94,16 +67,6 @@ class rtdeHelp(object):
         r = R.from_quat([qx, qy, qz, qw])
         Rx, Ry, Rz = r.as_rotvec()
         return Rx, Ry, Rz
-    
-    def getTransformedPose(self, goalPose):
-        T_mat = np.matmul(np.linalg.inv(self.transformation), get_Tmat_from_Pose(goalPose))
-        pose = get_ObjectPoseStamped_from_T(T_mat)
-        return pose
-    
-    def getTransformedPoseInv(self, goalPose):
-        T_mat = np.matmul(self.transformation, get_Tmat_from_Pose(goalPose))
-        pose = get_ObjectPoseStamped_from_T(T_mat)
-        return pose
 
     def getTCPPose(self, pose):
         x = pose.pose.position.x
@@ -128,19 +91,15 @@ class rtdeHelp(object):
         self.rtde_c.set_payload(payload, CoG)
 
     def goToPositionOrientation(self, goalPosition, setOrientation, asynchronous = False):
-        self.goToPose(self.getPoseObj(goalPosition, setOrientation))
+        self.goToPose(getPoseObj(goalPosition, setOrientation))
 
     def goToPose(self, goalPose, speed = 0.1, acc = 0.1, asynchronous=False):
-        pose = self.getTransformedPose(goalPose)
-        targetPose = self.getTCPPose(pose)
+        targetPose = self.getTCPPose(goalPose)
         self.rtde_c.moveL(targetPose, self.speed, self.acc, asynchronous)
 
     def goToPoseAdaptive(self, goalPose, speed = 0.0, acc = 0.0,  time = 0.05, lookahead_time = 0.2, gain = 100.0):         # normal force measurement
         t_start = self.rtde_c.initPeriod()
-        pose = self.getTransformedPose(goalPose)
-        targetPose = self.getTCPPose(pose)
-        currentPose = self.getTCPPose(self.getCurrentTCPPose())
-        pose_diff_norm = np.linalg.norm(np.array(targetPose[0:3])-np.array(currentPose[0:3]))
+        targetPose = self.getTCPPose(goalPose)
         self.rtde_c.servoL(targetPose, speed, acc, time, lookahead_time, gain)
         self.rtde_c.waitPeriod(t_start)
 
@@ -178,26 +137,13 @@ class rtdeHelp(object):
     # Get current pose from TF
     def getCurrentPoseTF(self):
         (Position, Orientation) = self.readCurrPositionQuat()
-        return self.getPoseObj(Position, Orientation)
-    
-    # Get current pose from TCP pose
+        return getPoseObj(Position, Orientation)
+
     def getCurrentPose(self):
-        return self.getTransformedPoseInv(self.getCurrentTCPPose())
-
-    def getCurrentPoseTCPaxis(self):
-        return self.getTransformedPose(self.getCurrentPose())
-
-    def getCurrentTCPPose(self):
         TCPPose = self.rtde_r.getActualTCPPose()
         Position = [TCPPose[0], TCPPose[1], TCPPose[2]]
         r = R.from_rotvec(np.array([TCPPose[3], TCPPose[4], TCPPose[5]]))
-        return self.getPoseObj(Position, r.as_quat())
-    
-    def getCurrentTCPPose1(self):
-        TCPPose = self.rtde_r.getActualTCPPose()
-        Position = [-TCPPose[0], -TCPPose[1], TCPPose[2]]
-        r = R.from_rotvec(np.array([TCPPose[3], TCPPose[4], TCPPose[5]]))
-        return self.getPoseObj(Position, r.as_quat())
+        return getPoseObj(Position, r.as_quat())
 
     def getTCPoffset(self):
         return self.rtde_c.getTCPOffset()

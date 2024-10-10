@@ -1,43 +1,40 @@
 #!/usr/bin/env python
+# this is for the robot state publisher
+# It uses tf to get the end effector pose and publishes it to the topic 'endEffectorPose'
+# In order to match the coordinate system of the RTDE, the transformation is used
 
 import sys
 import rospy
+import numpy as np
 from std_msgs.msg import String
 
 import moveit_commander
 from geometry_msgs.msg import PoseStamped
-# import endeffectorOffset as eff_offsetCal
+from helperFunction.utils import create_transform_matrix
+from helperFunction.transformation_matrix import get_Tmat_from_PositionQuat, get_ObjectPoseStamped_from_T, getPoseObj
+from scipy.spatial.transform import Rotation as R
+
+import rtde_receive
 
 import tf
-
-
 
 def robotStatePublisher():
     pub = rospy.Publisher('endEffectorPose', PoseStamped, queue_size=10)
     rospy.init_node('robotStatePublisher', anonymous=True)
 
-    listener = tf.TransformListener()
-
+    rtde_r = rtde_receive.RTDEReceiveInterface("10.0.0.1", 125)
     rate = rospy.Rate(30)
-    effPoseMsg = PoseStamped()
+
     while not rospy.is_shutdown():
         try:
-            (trans,rot) = listener.lookupTransform('/base_link', '/tool0', rospy.Time(0))
-            # (trans,rot) = listener.lookupTransform('/base_link', '/wrist_3_link', rospy.Time(0))
-            
-            effPoseMsg.pose.position.x = trans[0]
-            effPoseMsg.pose.position.y = trans[1]
-            effPoseMsg.pose.position.z = trans[2]
 
-            effPoseMsg.pose.orientation.x = rot[0]
-            effPoseMsg.pose.orientation.y = rot[1]
-            effPoseMsg.pose.orientation.z = rot[2]
-            effPoseMsg.pose.orientation.w = rot[3]
+            TCPPose = rtde_r.getActualTCPPose()
+            Position = [TCPPose[0], TCPPose[1], TCPPose[2]]
+            r = R.from_rotvec(np.array([TCPPose[3], TCPPose[4], TCPPose[5]]))
+            pose = getPoseObj(Position, r.as_quat())
+            pose.header.stamp = rospy.Time.now()
+            pub.publish(pose)
 
-            effPoseMsg.header.stamp= rospy.Time.now()
-
-            pub.publish(effPoseMsg)
-            
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             continue
 
