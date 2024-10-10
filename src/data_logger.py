@@ -6,7 +6,7 @@ import rosgraph
 import time
 from roslib.message import get_message_class
 from std_msgs.msg import *
-from jp_ur_dorsalgrasper.srv import *
+from edg_ur10.srv import *
 from rospy.msg import AnyMsg
 import numbers
 import collections
@@ -90,8 +90,6 @@ def appendDataPoint(topic, msg):
     output_file[topic].write(line)
 
 
-
-    
 
 #Wait until we get at least one value from each topic and then
 #append the CSV file with the informations.
@@ -236,7 +234,7 @@ def setLoggingState(request):
         #If its not already in that state
         if isLoggingEnabled != desiredState:
             #Loads the tae_datalogger/config/TopicsList.txt file
-            loadConfigFile(os.path.expanduser('~') + '/catkin_ws_new/src/jp_ur_dorsalgrasper/config/TopicsList.txt')
+            loadConfigFile(os.path.expanduser('~') + '/catkin_ws/src/edg_ur10/config/TopicsList.txt')
             print(("Listening for these topics: "+str(listOfTopics)))
 
             currentTimeStr = datetime.now().strftime('%Y_%m%d_%H%M%S')

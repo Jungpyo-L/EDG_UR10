@@ -1,5 +1,5 @@
 <launch>
-        <!-- Launch data Logger -->
+        <!-- Launch robot state publisher (robot pose) -->
         <node pkg="edg_ur10"           type="robotStatePublisher.py"                 name="robotStatePublisher"            output="screen" />
 
         <!-- This will be replaed by the real Node execution -->

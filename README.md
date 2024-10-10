@@ -22,12 +22,14 @@ roslaunch edg_ur10 ur_experiment.launch
 This script is to demonstrate a simple robot move from point A to B with a goToPose function. The speed and acceleration of the UR robot can be changed when rtde_helper 
 
 ```bash
-roslaunch edg_ur10 simple_robot_control.py
+rosrun edg_ur10 simple_robot_control.py
 ```
 
 ## data log (example: simple_data_log.py)
 Topic list
-
+```bash
+rosrun edg_ur10 simple_data_log.py
+```
 
 ## How does it work?
 The principal script uses three different [Python modules](https://docs.python.org/2/tutorial/modules.html) in order to work. Each of these modules have a specific purpose.
