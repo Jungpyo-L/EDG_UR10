@@ -43,7 +43,6 @@ def main(args):
   SYNC_START = 1
   SYNC_STOP = 2
 
-  FT_SimulatorOn = False
   np.set_printoptions(precision=4)
 
   # controller node
@@ -85,7 +84,7 @@ def main(args):
 
     # while loop for 10 s
     start_time = time.time()
-    while (time.time() - start_time) < 10:
+    while (time.time() - start_time) < 5:
       # publish SYNC_START
       syncPub.publish(SYNC_START)
       rospy.sleep(0.1)

@@ -51,6 +51,22 @@ class rtdeHelp(object):
         ns += suffix
         return ns
 
+    def getPoseObj(self, goalPosition, setOrientation):
+        Pose = PoseStamped()  
+        
+        Pose.header.frame_id = "base_link"
+        Pose.header.stamp = rospy.Time.now()
+        Pose.pose.orientation.x = setOrientation[0]
+        Pose.pose.orientation.y = setOrientation[1]
+        Pose.pose.orientation.z = setOrientation[2]
+        Pose.pose.orientation.w = setOrientation[3]
+        
+        Pose.pose.position.x = goalPosition[0]
+        Pose.pose.position.y = goalPosition[1]
+        Pose.pose.position.z = goalPosition[2]
+        
+        return Pose
+
     def quaternion_multiply(self, q1, q2):
         w1, x1, y1, z1 = q1
         w2, x2, y2, z2 = q2

@@ -24,7 +24,6 @@ from netft_utils.srv import *
 from edg_ur10.srv import *
 
 from helperFunction.rtde_helper import rtdeHelp
-from helperFunction.transformation_matrix import getPoseObj
 
 def main():
 
@@ -43,22 +42,22 @@ def main():
   # You can set the TCP offset here, but it is recommended to set it in the UR program.
   # If you set it here, endEffectorPose will be different from the actual pose.
   # rtde_help.setTCPoffset([0, 0, 0.464, 0, 0, 0])
-  rospy.sleep(0.2)
+  # rospy.sleep(0.2)
 
   # Set the pose A
-  positionA = [0.520, -0.200, 0.20]
+  positionA = [0.520, -0.200, 0.40]
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
-  poseA = getPoseObj(positionA, orientationA)
+  poseA = rtde_help.getPoseObj(positionA, orientationA)
 
   # Set the pose B
-  positionB = [0.620, -0.100, 0.30]
+  positionB = [0.620, -0.100, 0.50]
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
-  poseB = getPoseObj(positionB, orientationA)
+  poseB = rtde_help.getPoseObj(positionB, orientationA)
 
   # Set the pose C
-  positionB = [0.620, -0.100, 0.30]
+  positionB = [0.620, -0.100, 0.50]
   orientationB  = tf.transformations.quaternion_from_euler(np.pi + 45*deg2rad,0,-np.pi/2,'sxyz') #static (s) rotating (r)
-  poseC = getPoseObj(positionB, orientationB)
+  poseC = rtde_help.getPoseObj(positionB, orientationB)
 
   # try block so that we can have a keyboard exception
   try:
