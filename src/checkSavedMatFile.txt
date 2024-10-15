@@ -1,0 +1,66 @@
+% Load the .mat file
+% Plot endEffectorPose
+t = endEffectorPose_data(:,1);
+x = endEffectorPose_data(:,6);
+y = endEffectorPose_data(:,7);
+z = endEffectorPose_data(:,8);
+
+figure;
+subplot(3,1,1)
+plot(t,x)
+title('x')
+xlabel('ROS time (ns)')
+ylabel('TCP pose x (m)')
+subplot(3,1,2)
+plot(t,y)
+title('y')
+xlabel('ROS time (ns)')
+ylabel('TCP pose y (m)')
+subplot(3,1,3)
+plot(t,z)
+title('z')
+xlabel('ROS time (ns)')
+ylabel('TCP pose z (m)')
+
+
+% Plot force/torque result
+t = netftdata_data(:,1);
+fx = netftdata_data(:,2);
+fy = netftdata_data(:,3);
+fz = netftdata_data(:,4);
+tx = netftdata_data(:,5);
+ty = netftdata_data(:,6);
+tz = netftdata_data(:,7);
+
+figure;
+subplot(3,2,1)
+plot(t,fx)
+title('force x')
+xlabel('ROS time (ns)')
+ylabel('force x (N)')
+subplot(3,2,3)
+plot(t,fy)
+title('force y')
+xlabel('ROS time (ns)')
+ylabel('force y (N)')
+subplot(3,2,5)
+plot(t,fz)
+title('force z')
+xlabel('ROS time (ns)')
+ylabel('force z (N)')
+
+subplot(3,2,2)
+plot(t,tx)
+title('torque x')
+xlabel('ROS time (ns)')
+ylabel('torque x (Nm)')
+subplot(3,2,4)
+plot(t,ty)
+title('torque y')
+xlabel('ROS time (ns)')
+ylabel('torque y (Nm)')
+subplot(3,2,6)
+plot(t,tz)
+title('torque z')
+xlabel('ROS time (ns)')
+ylabel('torque z (Nm)')
