@@ -44,18 +44,24 @@ This module is excuted from the second launch file ('ur_experiment.launch').
 These modules' primary purpose are to make the main code simple by integrating all helper functions related to robot control and data logging
 
 #### The rtde_helper module
-
+This module has all things about robot control. It uses Real-Time Data Exchange (RTDE) protocol designed for Universal Robots (see details: https://www.universal-robots.com/products/ur-developer-suite/communication-protocol/rtde/). It includes basic motion of the UR robot using moveL and servoL as well as getting a TCP pose from the robot, getActualTCPPose. If needed, you can add other control methods (see details: https://sdurobotics.gitlab.io/ur_rtde/).
 
 #### The FT_callback_helper module
+This module is for subscribing data (/netft_data) from the ATI F/T sensor and performing 7-points moving average. Also, it helps us remove offset of data. In that case, need to use average_NoOffset variables.
 
 
 #### The trasnformation_matrix module
+This module includes functions for transformation matrixes and other form of them, including PoseStamped.
 
 #### The utils module
+This module has many util functions for mathematical calculation of robotic application, such as hat operator.
 
 #### The fileSaveHelper module
+This module saves data in the form of .mat file from logged cvs files. It saves mat file into EDG_Experiment folder. If you want to change the name of the parent folder, please change savingFolderName when you call this object.
 
-
+```python
+def __init__(self, savingFolderName = 'EDG_Experiment'):
+```
 
 ## 🚀 Usage (Example codes)
 Before run following example codes, the launch files are needed to excecute first.
