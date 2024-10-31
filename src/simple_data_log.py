@@ -51,7 +51,7 @@ def main(args):
   # Setup helper functions
   FT_help = FT_CallbackHelp() # it deals with subscription.
   rospy.sleep(0.5)
-  file_help = fileSaveHelp()
+  file_help = fileSaveHelp() # you can change parent folder name with fileSaveHelp(savingFolderName = 'EDG_Experiment')
   rospy.sleep(0.5)
 
   # Set the synchronization Publisher
@@ -79,6 +79,7 @@ def main(args):
 
    
     input("Press <Enter> to start to record data")
+    # start data logging
     dataLoggerEnable(True)
     rospy.sleep(0.2)
 
