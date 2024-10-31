@@ -64,31 +64,115 @@ def __init__(self, savingFolderName = 'EDG_Experiment'):
 ```
 
 ## 🚀 Usage (Example codes)
-Before run following example codes, the launch files are needed to excecute first.
+Before writing your own code, please run and understand how the following examples work. Note: Before running the examples below, ensure that two required launch files are executed first.
 
-### Simple robot control (simple_robot_control.py)
-This script is to demonstrate a simple robot move from point A to B with a goToPose function. The speed and acceleration of the UR robot can be changed when rtde_helper 
+### Simple robot control (`simple_robot_control.py`)
+The objective of this module is to send commands to the robot so that it moves as intended. This is achieved using the `goToPose` function. 
 
 ```bash
 rosrun edg_ur10 simple_robot_control.py
 ```
 
+The speed and acceleration of the UR robot can be specified when creating an instance of the `rtdeHelp` class:
 
-The objective of this module is to send commands to the robot such that it moves as intended. To do so, three main functions can be used: goRelOrientation, goRelPosition and goPose. The first is used to move the wrist of the robot by a number of degrees. The second is used to translate the robot end effector in space relative to its current position and following the world reference frame. The third function is used to command the robot to go to a specific precomputed pose.
+```python
+rtde_help = rtdeHelp(125, speed=0.1 , acc= 0.1)
+```
 
-Although it would be entirely possible to calculate the destination pose relative to the world reference frame and to use exclusively the goPose function, it would also make things more complicated than what is required for most common tasks. An easier workflow would be:
-1) Use the teach pendant to reach the desired position.
-2) Run the PrintCurrentPose.py script in order to generate the lines of code needed to reach that position/orientation.
-3) In your program, use the previously generated lines of code to instruct the robot to reach that chosen pose.
-4) Then translate the end effector using the goRelPosition function.
-5) Then, if needed, change the orientation of the end effector using the goRelOrientation function.
-6) Rinse and repeat the last two steps as needed.
+Note: Replace `125` (control rate) with the appropriate value for your setup.
 
-### simple data log (simple_data_log.py)
-Topic list
+The final pose object is constructed using two pieces of information: position and orientation.
+
+```python
+position = [0.520, -0.200, 0.40]
+orientation = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
+```
+
+- __Position__: A list `[x, y, z]` representing the coordinates with respect to the world frame. You can verify these values using the robot's pendant by setting the coordinate system to 'Base'.
+- __Orientation__: Euler angles are used. In this example, the 'sxyz' order specifies static frame rotations about the x, y, and z axes in that sequence. The rotation is applied as `R_x(θ_x)`, then `R_y(θ_y)`, followed by `R_z(θ_z)`.
+
+The pose object is obtained with:
+```python
+rtde_help.goToPose(pose)
+```
+
+To command the robot to move to a defined pose, use the `goToPose` function:
+
+```python
+rtde_help.goToPose(pose)
+```
+
+This script demonstrates a simple robot movement from point A (`poseA`) to point B (`poseB`), then rotates with respect to the Tool Center Point (TCP) to reach pose C (`poseC`).
+
+
+### simple data log (`simple_data_log.py`)
+This script, `simple_data_log.py`, is designed for basic data logging using a UR10e robot and ATI sensors. It records ATI data and robot positions for a specified duration (10 seconds in this example).
+
 ```bash
 rosrun edg_ur10 simple_data_log.py
 ```
+
+The `data_logger.py` module records all topics specified in `TopicsList.txt` located in the `config` folder. By default, `/endEffectorPose` and `/netft_data` are listed.
+
+`TopicsList.txt`:
+```text
+/endEffectorPose
+/netft_data
+```
+
+If you define your own message types or use conventional message types and you want to record them, you should add the topic names to `TopicsList.txt`.
+
+For example, if you want to record the `/sync` topic, you can add it to the list:
+
+```text
+/endEffectorPose
+/netft_data
+/sync
+```
+
+You need to enable and disable the data logger using a service so that you can specify the time window during which you want to record data.
+
+First, you need to define the service that you want to call:
+
+```python
+print("Wait for the data_logger to be enabled")
+rospy.wait_for_service('data_logging')
+dataLoggerEnable = rospy.ServiceProxy('data_logging', Enable)
+dataLoggerEnable(False) # reset Data Logger just in case
+rospy.sleep(1)
+file_help.clearTmpFolder()  # clear the temporary folder
+datadir = file_help.ResultSavingDirectory
+```
+
+Then, send an enable command to the service to start data logging:
+
+```python
+# Start data logging
+dataLoggerEnable(True)
+```
+
+After you are done, you need to stop recording so that raw data is saved properly:
+
+```python
+# stop data logging
+dataLoggerEnable(False)
+rospy.sleep(0.2)
+```
+
+Finally, all topics and arguments you specified in the script will be saved as a `.mat` file. By using `file_help.saveDataParams`, you can append text to the file name:
+
+```python
+# save data and clear the temporary folder
+file_help.saveDataParams(args, appendTxt='Simple_data_log_'+'argument(int)_'+ str(args.int)+'_argument(code)_'+ str(args.currentTime))
+file_help.clearTmpFolder()
+```
+The `.mat` file will be saved in a designated folder. By default, the files will be saved into `EDG_Experiment`. If you want to change the parent folder, you need to specify the folder name when you instantiate the `file_help` class:
+
+```python
+ file_help = fileSaveHelp(savingFolderName = 'EDG_Experiment')
+```
+
+
 
 ### simple experiment (simple_experiment.py)
 
