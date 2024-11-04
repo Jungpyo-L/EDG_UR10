@@ -144,6 +144,7 @@ def callback(data, args):
     topic = args[0]
     msg_name = args[1]
     # print(args)
+    # print(f"msg_name: '{msg_name}'")
 
     #Retrieve the class associated with that message name
     msg_class = get_message_class(msg_name)
