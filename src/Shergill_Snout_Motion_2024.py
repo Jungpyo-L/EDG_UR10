@@ -13,6 +13,15 @@
 # Description: This script is primarily for basic robot control using UR10e robot. 
 # It first moves to initial position (position A), then it move position A (poseA) to B (poseB) and rotate by 45 degrees in y-axis (poseC).
 
+#!/usr/bin/env python
+
+# Authors: Jungpyo Lee
+# Create: Nov.04.2024
+# Last update: Nov.04.2024
+# Description: This script is primarily for adaptive robot control using UR10e robot. 
+# It first moves to initial position (position A), then it move position A (poseA) to B (poseB) and preform adaptive robot control.
+# It basically moves to the right and move up and down depending on the force feedback. If the force is negative, it moves up, otherwise it moves down.
+
 # imports
 try:
   import rospy
@@ -26,13 +35,18 @@ from calendar import month_abbr
 import os, sys
 import numpy as np
 import copy
+import time
 
 from netft_utils.srv import *
 from edg_ur10.srv import *
 
-from helperFunction.rtde_helper import rtdeHelp
 
-def main():
+from helperFunction.FT_callback_helper import FT_CallbackHelp
+from helperFunction.rtde_helper import rtdeHelp
+from helperFunction.adaptiveMotion import adaptMotionHelp
+from helperFunction.fileSaveHelper import fileSaveHelp
+
+def main(args):
 
   deg2rad = np.pi / 180.0
 
@@ -42,51 +56,85 @@ def main():
   rospy.init_node('edg_experiment')
 
   # Setup helper functions
-  rtde_help = rtdeHelp(125, speed=0.05 , acc= 0.1)
-
+  FT_help = FT_CallbackHelp() # it deals with subscription.
   rospy.sleep(0.5)
+  rtde_help = rtdeHelp(125, speed=0.1 , acc= 0.1)
+  rospy.sleep(0.5)
+  file_help = fileSaveHelp()
+  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= 5e-3)
 
   # Set the TCP offset and calibration matrix (ex, suction cup: 0.150, ATI_default: 0.464)
   # You can set the TCP offset here, but it is recommended to set it in the UR program.
-  # If you set it here, endEffectorPose will be different from the actual pose.
+  # If you set it here, endEffect
+  # orPose will be different from the actual pose.
   # rtde_help.setTCPoffset([0, 0, 0.464, 0, 0, 0])
   # rospy.sleep(0.2)
 
-  # Set the pose A
-  positionA = [0.320, 0.3, 0.15]
-  orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
-  poseA = rtde_help.getPoseObj(positionA, orientationA)
+  # Set force threshold
+  F_normalThres = args.normalForce
+
+  # Set the data_logger
+  print("Wait for the data_logger to be enabled")
+  rospy.wait_for_service('data_logging')
+
+  dataLoggerEnable = rospy.ServiceProxy('data_logging', Enable) #*
+  dataLoggerEnable(False) # reset Data Logger just in case
+  rospy.sleep(1)
+  file_help.clearTmpFolder()        # clear the temporary folder
+  datadir = file_help.ResultSavingDirectory
 
 
-#   # Set the pose B
-#   positionB = [0.620, -0.100, 0.50]
-#   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
-#   poseB = rtde_help.getPoseObj(positionB, orientationA)
+  # Set the start pose
+  # Pose in the XY direction
+  currPose = rtde_help.getCurrentPose()
+  print("Current Pose: ", currPose)
+  startPositionA = [0.320, -0.200, currPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
+  startOrientationA = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi/3,'sxyz') #static (s) rotating (r)
+  # Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
+  startPoseA = rtde_help.getPoseObj(startPositionA, startOrientationA)
 
-#   # Set the pose C
-#   positionB = [0.620, -0.100, 0.50]
-#   orientationB  = tf.transformations.quaternion_from_euler(np.pi + 45*deg2rad,0,-np.pi/2,'sxyz') #static (s) rotating (r)
-#   poseC = rtde_help.getPoseObj(positionB, orientationB)
-
+  startPositionB = [0.320, -0.200, 0.3]
+  startOrientationB = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/3,'sxyz') # not moving it from the previous transformation
+  startPoseB = rtde_help.getPoseObj(startPositionB, startOrientationB)  
 
   # try block so that we can have a keyboard exception
   try:
 
-    input("Press <Enter> to go to pose A")
-    rtde_help.goToPose(poseA)
+    input("Press <Enter> to go to startPoseA")
+    rtde_help.goToPose(startPoseA)
     rospy.sleep(1)
-    print("poseA: ", rtde_help.getCurrentPose())
+    input("Press <Enter> to go to startPoseB")
+    rtde_help.goToPose(startPoseB)
+    rospy.sleep(1)
 
-    # input("Press <Enter> to go to pose B")
-    # rtde_help.goToPose(poseB)
-    # rospy.sleep(1)
-    # print("poseB: ", rtde_help.getCurrentPose())
+    # offset the force sensor - this step is for the force readings to make sense right?
+    FT_help.setNowAsBias()
 
-    # input("Press <Enter> to go to pose C")
-    # rtde_help.goToPose(poseC)
-    # rospy.sleep(1)
-    # print("poseC: ", rtde_help.getCurrentPose())
+
+    input("Press <Enter> to adaptive robot control")
+    startTime = time.time()
     
+
+    # loop for adaptive robot control for args.timeLimit seconds
+    while (time.time() - startTime) < args.timeLimit:
+      # Get the current pose
+      currentPose = rtde_help.getCurrentPose()
+
+      # Get the next pose
+      # lateral
+      T_lat = adpt_help.get_Tmat_TranlateInY(direction = -1)
+      # rotation
+      T_rot = np.eye(4)
+      # normal
+      F_normal = FT_help.averageFz_noOffset
+      T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
+      T_move = T_lat @ T_normal @ T_rot
+      currPose = rtde_help.getCurrentPose()
+      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currPose)
+
+      # Move to the next pose -- may tune depending on the motion I'm seeing
+      rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+
 
     print("============ Python UR_Interface demo complete!")
   except rospy.ROSInterruptException:
@@ -96,4 +144,20 @@ def main():
 
 
 if __name__ == '__main__':
-  main()
+  import argparse
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 5)
+  parser.add_argument('--pathlLimit', type=float, help='path-length limit for the adaptive motion (m)', default= 0.2)
+  parser.add_argument('--normalForce', type=float, help='normal force threshold', default= 0.25)  
+  args = parser.parse_args()    
+
+  main(args)
+
+
+
+
+
+
+
+
+###############################################################################
