@@ -87,7 +87,7 @@ def main(args):
   # Set the start pose
   # Pose in the XY direction
   currPose = rtde_help.getCurrentPose()
-  print("Current Pose: ", currPose)
+  # print("Current Pose: ", currPose)
   startPositionA = [0.320, -0.200, currPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
   startOrientationA = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi/3,'sxyz') #static (s) rotating (r)
   # Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
@@ -124,8 +124,11 @@ def main(args):
       # lateral
       T_lat = adpt_help.get_Tmat_TranlateInY(direction = -1)
       # rotation
-      T_rot = np.eye(4)
-      # normal
+      if (time.time() - startTime) > 2:
+        T_rot = adpt_help.get_Tmat_RotateInX(direction = 1)
+      else:
+        T_rot = np.eye(4)
+      # nor+mal
       F_normal = FT_help.averageFz_noOffset
       T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
       T_move = T_lat @ T_normal @ T_rot
@@ -148,14 +151,18 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 5)
   parser.add_argument('--pathlLimit', type=float, help='path-length limit for the adaptive motion (m)', default= 0.2)
-  parser.add_argument('--normalForce', type=float, help='normal force threshold', default= 0.25)  
+  parser.add_argument('--normalForce', type=float, help='normal force threshold', default= 0.5)  
   args = parser.parse_args()    
 
   main(args)
 
 
 
-
+    # def get_Tmat_RotateInY(self, direction = 1):
+    #     rot_axis = np.array([0.0, np.sign(direction), 0.0])
+    #     omega_hat = hat(rot_axis)
+    #     Rw = scipy.linalg.expm(self.dw* omega_hat)
+    #     return create_transform_matrix(Rw, [0,0,0]
 
 
 

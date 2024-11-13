@@ -50,7 +50,8 @@ def main(args):
 
   # Set the TCP offset and calibration matrix (ex, suction cup: 0.150, ATI_default: 0.464)
   # You can set the TCP offset here, but it is recommended to set it in the UR program.
-  # If you set it here, endEffectorPose will be different from the actual pose.
+  # If you set it here, endEffect
+  # orPose will be different from the actual pose.
   # rtde_help.setTCPoffset([0, 0, 0.464, 0, 0, 0])
   # rospy.sleep(0.2)
 
@@ -106,7 +107,7 @@ def main(args):
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currPose)
 
       # Move to the next pose
-      rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+      rtde_help.goToPoseAdaptive(targetPose, time = 2)
 
 
     print("============ Python UR_Interface demo complete!")
