@@ -1,10 +1,11 @@
+#!/usr/bin/env python
 ## Shergill_Snout_Motion_2024
 # Last updated: 10/31/2024
 # Adapted from Jungpyo's simple_robot_control.py script
 # Eventually to add the data collection part but for now just testing the first few motion steps
 
 ###########################################################################
-#!/usr/bin/env python
+
 
 
 # Authors: Jungpyo Lee
@@ -86,20 +87,40 @@ def main(args):
 
   # Set the start pose
   # Pose in the XY direction
-  currPose = rtde_help.getCurrentPose()
-  # print("Current Pose: ", currPose)
-  startPositionA = [0.320, -0.200, currPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
-  startOrientationA = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi/3,'sxyz') #static (s) rotating (r)
+  # Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down is when 
+  # we do tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi/2,'sxyz')
+  # ORIGINAL COORD SYSTEM: RHR - x axis is pointing right, y axis is point out page, and z axis is pointing up 
+  
+  # This first chunk of code is getting the current pose of the robot and setting the start position and orientation 
+  # We need the current pose to have xy motion without z motion 
+  # We also rotate the axes. THIS IS IMPORTANT. The rotation in the z is done as is so the snout is orientated correctly 
+  # in tje 'horizontal' direction. 
+  # The new axes are x-axis: left, y-axis: out of the page, z-axis: down
+  
+  currentPose = rtde_help.getCurrentPose()
+  startPositionA = [0.320, -0.200, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
+  startOrientationA = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi,'sxyz') #static (s) rotating (r)
   # Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
   startPoseA = rtde_help.getPoseObj(startPositionA, startOrientationA)
 
+# We descend into media. No rotation. 
   startPositionB = [0.320, -0.200, 0.3]
-  startOrientationB = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/3,'sxyz') # not moving it from the previous transformation
-  startPoseB = rtde_help.getPoseObj(startPositionB, startOrientationB)  
+  startOrientationB = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
+  startPoseB = rtde_help.getPoseObj(startPositionB, startOrientationB) 
+
+  # Creating new objects to use for the rotation
+  # d_w is a speed paramter. It is the speed of the rotation in radians per second.
+  # d_lat is a speed parameter. It is the speed of the lateral motion in meters per second.
+  # d_z is a speed parameter. It is the speed of the vertical motion in meters per second.
+  RotationA = adaptMotionHelp()
+  RotationA.d_w = 0.05; RotationA.d_lat = 10e-3; RotationA.d_z = 5e-3
+  RotationB = adaptMotionHelp() 
+  RotationB.d_w = 20; RotationB.d_lat = 10e-3; RotationB.d_z = 5e-3
 
   # try block so that we can have a keyboard exception
   try:
 
+# Initial position 
     input("Press <Enter> to go to startPoseA")
     rtde_help.goToPose(startPoseA)
     rospy.sleep(1)
@@ -114,7 +135,7 @@ def main(args):
     input("Press <Enter> to adaptive robot control")
     startTime = time.time()
     
-
+    rot_angle = 0
     # loop for adaptive robot control for args.timeLimit seconds
     while (time.time() - startTime) < args.timeLimit:
       # Get the current pose
@@ -122,14 +143,33 @@ def main(args):
 
       # Get the next pose
       # lateral
-      T_lat = adpt_help.get_Tmat_TranlateInY(direction = -1)
+      T_lat = adpt_help.get_Tmat_TranlateInZ(direction = 1)
       # rotation
-      if (time.time() - startTime) > 2:
-        T_rot = adpt_help.get_Tmat_RotateInX(direction = 1)
-      else:
-        T_rot = np.eye(4)
+      T_start = adpt_help.get_Tmat_from_Pose(currentPose)
+      
+      while rot_angle <= 25:
+        # I may have something flipped in the reasoning for the axes below,
+        #  can proceed with work by using -1 direction but should correct
+        #  for accurateness and completeness
+        T_rot = RotationA.get_Tmat_RotateInY(direction = 1) # CHANGED FROM - TO +
+        targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot, currentPose)
+        rtde_help.goToPoseAdaptive(targetPose, time=2)
+        currentPose = rtde_help.getCurrentPose()
+        T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
+        T_rot = T_start @ T_curr
+        rot_angle = np.arccos(T_rot[2,2]) * 180/np.pi
+        #print("Rotation angle: ", rot_angle)
+        #print("Rotation angle: ", rot_angle<=25)
+        if rot_angle >= 25:
+          rtde_help.stopAtCurrPoseAdaptive()
+          break
+      
+
+      T_rot = np.eye(4) # no rotation
+      
       # nor+mal
-      F_normal = FT_help.averageFz_noOffset
+      F_normal = FT_help.averageFz_noOffset # if axes change, it's no longer z then?
+      print('F_normal: ', F_normal)
       T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
       T_move = T_lat @ T_normal @ T_rot
       currPose = rtde_help.getCurrentPose()
@@ -149,9 +189,9 @@ def main(args):
 if __name__ == '__main__':
   import argparse
   parser = argparse.ArgumentParser()
-  parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 5)
-  parser.add_argument('--pathlLimit', type=float, help='path-length limit for the adaptive motion (m)', default= 0.2)
-  parser.add_argument('--normalForce', type=float, help='normal force threshold', default= 0.5)  
+  parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 8)
+  parser.add_argument('--pathlLimit', type=float, help='path-length limit for the adaptive motion (m)', default= 0.5)
+  parser.add_argument('--normalForce', type=float, help='normal force threshold', default= 0.25)  
   args = parser.parse_args()    
 
   main(args)
