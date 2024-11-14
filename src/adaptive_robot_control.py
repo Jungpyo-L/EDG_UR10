@@ -97,8 +97,10 @@ def main(args):
       # Get the next pose
       # lateral
       T_lat = adpt_help.get_Tmat_TranlateInY(direction = -1)
+      T_lat = np.eye(4)
       # rotation
       T_rot = np.eye(4)
+      T_rot = adpt_help.get_Tmat_RotateInX(direction = 1)
       # normal
       F_normal = FT_help.averageFz_noOffset
       T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
