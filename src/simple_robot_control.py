@@ -35,7 +35,7 @@ def main():
   rospy.init_node('edg_experiment')
 
   # Setup helper functions
-  rtde_help = rtdeHelp(125, speed=0.1 , acc= 0.1)
+  rtde_help = rtdeHelp(125)
   rospy.sleep(0.5)
 
   # Set the TCP offset and calibration matrix (ex, suction cup: 0.150, ATI_default: 0.464)

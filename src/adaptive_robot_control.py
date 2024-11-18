@@ -43,7 +43,7 @@ def main(args):
   # Setup helper functions
   FT_help = FT_CallbackHelp() # it deals with subscription.
   rospy.sleep(0.5)
-  rtde_help = rtdeHelp(125, speed=0.1 , acc= 0.1)
+  rtde_help = rtdeHelp(125)
   rospy.sleep(0.5)
   file_help = fileSaveHelp()
   adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= 5e-3)

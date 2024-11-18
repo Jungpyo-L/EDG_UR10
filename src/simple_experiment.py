@@ -58,7 +58,7 @@ def main(args):
   rospy.sleep(0.5)
   file_help = fileSaveHelp()
   rospy.sleep(0.5)
-  rtde_help = rtdeHelp(125, speed=0.1 , acc= 0.1)
+  rtde_help = rtdeHelp(125)
   rospy.sleep(0.5)
 
   # Set the synchronization Publisher
