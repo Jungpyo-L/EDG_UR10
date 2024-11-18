@@ -59,7 +59,7 @@ def main(args):
   # Setup helper functions
   FT_help = FT_CallbackHelp() # it deals with subscription.
   rospy.sleep(0.5)
-  rtde_help = rtdeHelp(125, speed=0.1 , acc= 0.1)
+  rtde_help = rtdeHelp(125)
   rospy.sleep(0.5)
   file_help = fileSaveHelp()
   adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= 5e-3)
@@ -165,18 +165,19 @@ def main(args):
           break
       
 
-      T_rot = np.eye(4) # no rotation
+      # T_rot = np.eye(4) # no rotation
       
-      # nor+mal
-      F_normal = FT_help.averageFz_noOffset # if axes change, it's no longer z then?
-      print('F_normal: ', F_normal)
-      T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
-      T_move = T_lat @ T_normal @ T_rot
-      currPose = rtde_help.getCurrentPose()
-      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currPose)
+      # T_lat = adpt_help.get_Tmat_TranlateInZ(direction = 1)
+      # # nor+mal
+      # F_normal = FT_help.averageFz_noOffset # if axes change, it's no longer z then?
+      # print('F_normal: ', F_normal)
+      # T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
+      # T_move = T_lat @ T_normal @ T_rot
+      # currPose = rtde_help.getCurrentPose()
+      # targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currPose)
 
-      # Move to the next pose -- may tune depending on the motion I'm seeing
-      rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+      # # Move to the next pose -- may tune depending on the motion I'm seeing
+      # rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
 
 
     print("============ Python UR_Interface demo complete!")
