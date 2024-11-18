@@ -25,7 +25,7 @@ import numpy as np
 
 
 class rtdeHelp(object):
-    def __init__(self, rtde_frequency = 125, speed = 0.3, acc = 0.2):
+    def __init__(self, rtde_frequency = 125):
         self.tfListener = tf.TransformListener()
         self.rtde_frequency = rtde_frequency
 
@@ -34,8 +34,6 @@ class rtdeHelp(object):
 
         self.checkDistThres = 1e-3
         self.checkQuatThres = 10e-3
-        self.speed = speed
-        self.acc = acc
 
     def _append_ns(self, in_ns, suffix):
         """
@@ -111,7 +109,7 @@ class rtdeHelp(object):
 
     def goToPose(self, goalPose, speed = 0.1, acc = 0.1, asynchronous=False):
         targetPose = self.getTCPPose(goalPose)
-        self.rtde_c.moveL(targetPose, self.speed, self.acc, asynchronous)
+        self.rtde_c.moveL(targetPose, speed, acc, asynchronous)
 
     def goToPoseAdaptive(self, goalPose, speed = 0.0, acc = 0.0,  time = 0.05, lookahead_time = 0.2, gain = 100.0):         # normal force measurement
         t_start = self.rtde_c.initPeriod()
