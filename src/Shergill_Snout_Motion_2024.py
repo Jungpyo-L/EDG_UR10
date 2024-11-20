@@ -94,7 +94,7 @@ def main(args):
   # This first chunk of code is getting the current pose of the robot and setting the start position and orientation 
   # We need the current pose to have xy motion without z motion 
   # We also rotate the axes. THIS IS IMPORTANT. The rotation in the z is done as is so the snout is orientated correctly 
-  # in tje 'horizontal' direction. 
+  # in the 'horizontal' direction. 
   # The new axes are x-axis: left, y-axis: out of the page, z-axis: down
   
   currentPose = rtde_help.getCurrentPose()
@@ -113,7 +113,7 @@ def main(args):
   # d_lat is a speed parameter. It is the speed of the lateral motion in meters per second.
   # d_z is a speed parameter. It is the speed of the vertical motion in meters per second.
   RotationA = adaptMotionHelp()
-  RotationA.d_w = 0.05; RotationA.d_lat = 10e-3; RotationA.d_z = 5e-3
+  RotationA.d_w = 0.01; RotationA.d_lat = 10e-3; RotationA.d_z = 5e-3
   RotationB = adaptMotionHelp() 
   RotationB.d_w = 20; RotationB.d_lat = 10e-3; RotationB.d_z = 5e-3
 
@@ -136,50 +136,135 @@ def main(args):
     startTime = time.time()
     
     rot_angle = 0
+    T_lat_originalX = adpt_help.get_Tmat_TranlateInX(direction = -1) # defining outside of loop in z direction I want to move in
+    action_counter = 0
     # loop for adaptive robot control for args.timeLimit seconds
-    while (time.time() - startTime) < args.timeLimit:
+    while (time.time() - startTime) < args.timeLimit:  
+      if action_counter == 0:
+        action_counter += 1
+        print("Action counter: ", action_counter)
       # Get the current pose
       currentPose = rtde_help.getCurrentPose()
 
       # Get the next pose
       # lateral
-      T_lat = adpt_help.get_Tmat_TranlateInZ(direction = 1)
+      #T_lat = adpt_help.get_Tmat_TranlateInZ(direction = 1)
       # rotation
       T_start = adpt_help.get_Tmat_from_Pose(currentPose)
+
+
+
+      while time.time() - startTime < 3:
+        if action_counter == 1:
+          action_counter += 1
+          print("Action counter: ", action_counter)
+
+        currentPose = rtde_help.getCurrentPose()
+
+        T_rot = np.eye(4) # no rotation
+        # nor+mal
+        F_normal = FT_help.averageFz_noOffset # if axes change, it's no longer z then? Still a question to answer - ignores offsets in z axis apparently
+        #print('F_normal: ', F_normal)
+        T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce) # get a matrix for moving in the z direction as a function of the measured normal force and the threshold in args
+        # T_move = T_lat @ T_normal @ T_rot
+        T_move =  T_rot @ T_normal @ T_lat_originalX  # move in the x direction and then in the z direction, this is a calculation for the next pose
+        # currentPose = rtde_help.getCurrentPose()
+        targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose) # go from current pose to target pose
+        rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+
       
+      ######################
+      #     ROTATION 1     #
+      ######################
+      # CURRENTLY HAS NO ADAPTIVE MOTION WHEN ROTATION HAPPENS
       while rot_angle <= 25:
+        if action_counter == 2:
+          action_counter += 1
+          print("Action counter: ", action_counter)
         # I may have something flipped in the reasoning for the axes below,
         #  can proceed with work by using -1 direction but should correct
         #  for accurateness and completeness
-        T_rot = RotationA.get_Tmat_RotateInY(direction = 1) # CHANGED FROM - TO +
-        targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot, currentPose)
-        rtde_help.goToPoseAdaptive(targetPose, time=2)
-        currentPose = rtde_help.getCurrentPose()
-        T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
-        T_rot = T_start @ T_curr
-        rot_angle = np.arccos(T_rot[2,2]) * 180/np.pi
-        #print("Rotation angle: ", rot_angle)
-        #print("Rotation angle: ", rot_angle<=25)
+        T_rot = RotationA.get_Tmat_RotateInY(direction = 1) # CHANGED FROM - TO + # get a matrix for rotation in positive y direction, how much to rotate from this step to next line may be fcn of dw? sort of but not significantly
+
+        # ADAPTIVE MOTION WHILE ROTATION HAPPENS #########
+        # F_normal = FT_help.averageFz_noOffset
+        # T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
+        # T_move = T_normal @ T_rot
+        # targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)s
+        # rtde_help.goToPoseAdaptive(targetPose, time=2)
+        ##################################################
+
+        targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot, currentPose) # get what that pose would be
+        rtde_help.goToPoseAdaptive(targetPose, time=2) # go to that pose and take two seconds to do it
+
+        # CHECKING ROTATION ANGLE RELATIVE TO START POSITION (HORIZONTAL): this part seems to be checking the rotation angle relative to the start position; the actual rotation is done in the previous lines
+        currentPose = rtde_help.getCurrentPose() # get the current pose
+        T_curr = adpt_help.get_Tmat_from_Pose(currentPose) # get the transformation matrix from the current pose, essentially the currentPose is in list format of xyz and quaternion, this function converts it to a transformation matrix
+        T_rot = T_start @ T_curr # multiply the current transformation matrix by the start transformation matrix, rotation relative to the start position
+        rot_angle = np.arccos(T_rot[2,2]) * 180/np.pi # for printing purposes, get the angle of rotation in degrees
+        print("Rotation angle: ", rot_angle)
+        # print("Rotation angle: ", rot_angle<=25)
+        
         if rot_angle >= 25:
           rtde_help.stopAtCurrPoseAdaptive()
           break
-      
 
-      # T_rot = np.eye(4) # no rotation
-      
-      # T_lat = adpt_help.get_Tmat_TranlateInZ(direction = 1)
-      # # nor+mal
-      # F_normal = FT_help.averageFz_noOffset # if axes change, it's no longer z then?
-      # print('F_normal: ', F_normal)
-      # T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
+       ######################
+       # END OF ROTATION 2  #
+       ######################
+      if (time.time() - startTime) > 7 and action_counter == 3:
+        action_counter += 1
+        print("Action counter: ", action_counter)
+        rot_angle = 0
+        while rot_angle <= 10:
+          # I may have something flipped in the reasoning for the axes below,
+          #  can proceed with work by using -1 direction but should correct
+          #  for accurateness and completeness
+          T_rot = RotationA.get_Tmat_RotateInY(direction = -1) # CHANGED FROM - TO + # get a matrix for rotation in positive y direction, how much to rotate from this step to next line may be fcn of dw? sort of but not significantly
+
+          # ADAPTIVE MOTION WHILE ROTATION HAPPENS #########
+          # F_normal = FT_help.averageFz_noOffset
+          # T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
+          # T_move = T_normal @ T_rot
+          # targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)s
+          # rtde_help.goToPoseAdaptive(targetPose, time=2)
+          ##################################################
+
+          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot, currentPose) # get what that pose would be
+          rtde_help.goToPoseAdaptive(targetPose, time=2) # go to that pose and take two seconds to do it
+
+          # CHECKING ROTATION ANGLE RELATIVE TO START POSITION (HORIZONTAL): this part seems to be checking the rotation angle relative to the start position; the actual rotation is done in the previous lines
+          currentPose = rtde_help.getCurrentPose() # get the current pose
+          T_curr = adpt_help.get_Tmat_from_Pose(currentPose) # get the transformation matrix from the current pose, essentially the currentPose is in list format of xyz and quaternion, this function converts it to a transformation matrix
+          T_rot = T_start @ T_curr # multiply the current transformation matrix by the start transformation matrix, rotation relative to the start position
+          rot_angle = np.arccos(T_rot[2,2]) * 180/np.pi # for printing purposes, get the angle of rotation in degrees
+          print("Rotation angle: ", rot_angle)
+          # print("Rotation angle: ", rot_angle<=5)
+          
+          if rot_angle >= 10:
+            rtde_help.stopAtCurrPoseAdaptive()
+            break
+
+
+
+      ###################################
+      #  NO ROTATION ADAPTIVE CONTROL - What's happening when above parts are not triggered  #
+      ###################################
+
+      T_rot = np.eye(4) # no rotation
+      # nor+mal
+      F_normal = FT_help.averageFz_noOffset # if axes change, it's no longer z then? Still a question to answer - ignores offsets in z axis apparently
+      #print('F_normal: ', F_normal)
+      T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce) # get a matrix for moving in the z direction as a function of the measured normal force and the threshold in args
       # T_move = T_lat @ T_normal @ T_rot
-      # currPose = rtde_help.getCurrentPose()
-      # targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currPose)
+      T_move =  T_rot @ T_normal @ T_lat_originalX  # move in the x direction and then in the z direction, this is a calculation for the next pose
+      currentPose = rtde_help.getCurrentPose()
+      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose) # go from current pose to target pose
 
-      # # Move to the next pose -- may tune depending on the motion I'm seeing
-      # rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+      # Move to the next pose -- may tune depending on the motion I'm seeing
+      rtde_help.goToPoseAdaptive(targetPose, time = 0.1) # This command says move to target pose in 0.1 seconds
 
-
+    print("time elapsed: ", time.time() - startTime)
     print("============ Python UR_Interface demo complete!")
   except rospy.ROSInterruptException:
     return
@@ -190,7 +275,7 @@ def main(args):
 if __name__ == '__main__':
   import argparse
   parser = argparse.ArgumentParser()
-  parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 8)
+  parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 10)
   parser.add_argument('--pathlLimit', type=float, help='path-length limit for the adaptive motion (m)', default= 0.5)
   parser.add_argument('--normalForce', type=float, help='normal force threshold', default= 0.25)  
   args = parser.parse_args()    
