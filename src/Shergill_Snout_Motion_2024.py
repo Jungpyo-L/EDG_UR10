@@ -1,14 +1,11 @@
 #!/usr/bin/env python
-## Shergill_Snout_Motion_2024
-# Last updated: 10/31/2024
+## Shergill_Snout_Motion_2024.py
+# Last updated: /2024
 # Adapted from Jungpyo's simple_robot_control.py script
 # Eventually to add the data collection part but for now just testing the first few motion steps
 
-###########################################################################
 
-
-
-# Authors: Jungpyo Lee
+# Authors: Nimran Shergill, Jungpyo Lee
 # Create: Oct.08.2024
 # Last update: Oct.10.2024
 # Description: This script is primarily for basic robot control using UR10e robot. 
@@ -152,8 +149,9 @@ def main(args):
       # rotation
       T_start = adpt_help.get_Tmat_from_Pose(currentPose)
 
-
-
+      ######################
+      # ADAPTIVE MOTION WHILE LATERAL MOVEMENT HAPPENS ######### WORKS!
+      ######################
       while time.time() - startTime < 3:
         if action_counter == 1:
           action_counter += 1
@@ -190,7 +188,7 @@ def main(args):
         # F_normal = FT_help.averageFz_noOffset
         # T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
         # T_move = T_normal @ T_rot
-        # targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)s
+        # targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
         # rtde_help.goToPoseAdaptive(targetPose, time=2)
         ##################################################
 
