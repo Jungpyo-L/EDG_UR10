@@ -13,14 +13,6 @@
 # Description: This script is primarily for basic robot control using UR10e robot. 
 # It first moves to initial position (position A), then it move position A (poseA) to B (poseB) and rotate by 45 degrees in y-axis (poseC).
 
-#!/usr/bin/env python
-
-# Authors: Jungpyo Lee
-# Create: Nov.04.2024
-# Last update: Nov.04.2024
-# Description: This script is primarily for adaptive robot control using UR10e robot. 
-# It first moves to initial position (position A), then it move position A (poseA) to B (poseB) and preform adaptive robot control.
-# It basically moves to the right and move up and down depending on the force feedback. If the force is negative, it moves up, otherwise it moves down.
 
 # imports
 try:
@@ -107,8 +99,7 @@ def main(args):
   # d_w is a speed paramter. It is the speed of the rotation in radians per second.
   # d_lat is a speed parameter. It is the speed of the lateral motion in meters per second.
   # d_z is a speed parameter. It is the speed of the vertical motion in meters per second.
-  rotation = adaptMotionHelp()
-  rotation.d_w = 0.01; rotation.d_lat = 10e-3; rotation.d_z = 5e-3
+ # adpt_help = adaptMotionHelp(d_w = 0.1,d_lat = 10e-3, d_z= 5e-3)
 
  # try block so that we can have a keyboard exception
   try:
@@ -125,25 +116,29 @@ def main(args):
     FT_help.setNowAsBias() # offset the force sensor, zeros gravity and other forces
 
     ########################################
+    ########################################
     input("Press <Enter> to snout motion sequence with adaptive control")
     startTime = time.time()
     
-    cumulative_rot_angle = 0 # going to accumulate the snout orientation from here
+    # cumulative_rot_angle = 0 # going to accumulate the snout orientation from here
     # Below is storing the end effector pose at the beginning of the adaptive motion, 
     # motion and force sensing should be relative to this
     T_lat_originalX = adpt_help.get_Tmat_TranlateInX(direction = -1) 
     T_lat_originalY = adpt_help.get_Tmat_TranlateInY(direction = -1) 
     T_lat_originalZ = adpt_help.get_Tmat_TranlateInZ(direction = -1)
 
+    ########################################
     while (time.time() - startTime) < args.timeLimit: # trials for 10 seconds
       currentPose = rtde_help.getCurrentPose()
       T_start = adpt_help.get_Tmat_from_Pose(currentPose)
+      print("Currrent.z: ", currentPose.pose.position.z)
 
       ######################
       # ADAPTIVE MOTION WHILE LATERAL MOVEMENT HAPPENS ######### WORKS!
       ######################
-      while time.time() - startTime < 2.5: # 2.5 seconds
-
+      while time.time() - startTime < 1: # 2.5 seconds
+        print("Currrent.z: ", currentPose.pose.position.z)
+        # adpt_help.d_lat = 30e-3 # 10 mm/s
         currentPose = rtde_help.getCurrentPose()
 
         T_rot = np.eye(4) # no rotation
@@ -151,72 +146,134 @@ def main(args):
         T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce) # get a matrix for moving in the z direction as a function of the measured normal force and the threshold in args
         T_move =  T_rot @ T_normal @ T_lat_originalX  # move in the x direction and then in the z direction, this is a calculation for the next pose
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose) # go from current pose to target pose
-        rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+        rtde_help.goToPoseAdaptive(targetPose, time = 2, gain = 150)
 
       ######################
       #     ROTATION 1     # without any extra motions while rotating
       ######################
       # Rotate in the positive direction
-      cumulative_rot_angle = 0  # Initialize cumulative rotation angle
-
-      while cumulative_rot_angle <= 25:
+      # For the first rotation, we don't need to track two different angles. 
+      overall_angle = 0  # Initialize cumulative rotation angle
+      print("I'm here!")
+      while overall_angle <= 45:
+        adpt_help.dw = 0.1
         T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1)  # Positive Y-direction
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
-        rtde_help.goToPoseAdaptive(targetPose, time=2)
+        rtde_help.goToPoseAdaptive(targetPose, time = 2)
 
         currentPose = rtde_help.getCurrentPose()
         T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
-        T_relative = np.linalg.inv(T_start) @ T_curr
-        relative_angle = np.arccos(T_relative[2, 2]) * 180 / np.pi  # Rotation relative to start
-        
-        cumulative_rot_angle = relative_angle  # Track cumulative rotation
-        print("Cumulative Rotation angle: ", cumulative_rot_angle)
 
-        if cumulative_rot_angle >= 25:
+        T_overall = np.linalg.inv(T_start) @ T_curr
+        overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi  # Rotation relative to start
+        
+        # Adjust the angle sign for negative rotation
+        if T_overall[2, 0] > 0:  # Check direction of rotation based on off-diagonal terms
+            overall_angle  = -overall_angle 
+
+        # cumulative_rot_angle = relative_angle  # Track cumulative rotation
+        #print("Overall angle (relative to coord frame at Pose C): ", overall_angle)
+
+        if overall_angle >= 15:
             rtde_help.stopAtCurrPoseAdaptive()
             break
+      
+      #############################################
+      #     HORIZONTAL MOTION AFTER ROTATION 1  
+      #############################################
+      print("I'm here!")
+      FT_help.setNowAsBias()
+      R_relative = T_overall[:3,:3] # using this to adjust Fz which has now changed due to rotation
 
+      currentPose = rtde_help.getCurrentPose()
+      xAfterRotation = currentPose.pose.position.x
+      while currentPose.pose.position.x <= xAfterRotation + 0.05:
+        F_normal = FT_help.averageFz_noOffset
+        F_local = np.array([0,0, F_normal]) # in the local frame
+        F_originalZ = R_relative @ F_local # in the original frame
+
+        #print("F_normal in local frame: ", F_local[2])
+        print("F_normal in original frame: ", F_originalZ[2])
+        T_normal = adpt_help.get_Tmat_axialMove(F_originalZ[2], args.normalForce)
+        T_rot = np.eye(4) # no rotation
+        T_move =  T_rot @ T_normal @ T_lat_originalX 
+
+        currentPose = rtde_help.getCurrentPose()
+        targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose) 
+
+        rtde_help.goToPoseAdaptive(targetPose, time = 2, gain = 150) 
 
       ######################
       #     ROTATION 2    # without any extra motions while rotating
-      ######################
-      # Rotate in the negative direction
-      cumulative_rot_angle = 0  # Reset cumulative rotation angle
-      while cumulative_rot_angle >= -10:  # Negative limit for opposite rotation
-        T_rot_step = rotation.get_Tmat_RotateInY(direction=-1)  # Negative Y-direction
+      ######################*
+      #   # Rotate in the negative direction
+      relative_angle = 0  
+      FT_help.setNowAsBias()
+      # adpt_help.dw = 0.1
+      # a second angle is defined here to track changes from the frame that the tool is in 
+      # after the first rotation. We want the difference between this relative angle and
+      # the overall angle to be the angle desired. 
+      print("Overall angle: ", overall_angle)
+      currentPose = rtde_help.getCurrentPose()
+      T_frame2 = adpt_help.get_Tmat_from_Pose(currentPose) # the frame we are starting in 
+
+      while (np.abs(overall_angle - relative_angle)) >= 5:  # Negative limit for opposite rotation
+        
+        adpt_help.dw = 0.1
+        T_rot_step =  adpt_help.get_Tmat_RotateInY(direction=-1)  # Negative Y-direction
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
         rtde_help.goToPoseAdaptive(targetPose, time=2)
 
         currentPose = rtde_help.getCurrentPose()
+
         T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
-        T_relative = np.linalg.inv(T_start) @ T_curr
-        relative_angle = np.arccos(T_relative[2, 2]) * 180 / np.pi  # Rotation relative to start
+        T_overall = np.linalg.inv(T_start) @ T_curr
+        overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi  # Rotation relative to start
+
+        T_relative = np.linalg.inv(T_frame2) @ T_curr
+        relative_angle = np.arccos(T_relative[2, 2]) * 180 / np.pi  # Rotation relative to current pose
+        
+        # Adjust the angle sign for negative rotation
+        if T_overall[2, 0] > 0:  # Check direction of rotation based on off-diagonal terms
+            overall_angle = -overall_angle
 
         # Adjust the angle sign for negative rotation
         if T_relative[2, 0] > 0:  # Check direction of rotation based on off-diagonal terms
             relative_angle = -relative_angle
         
-        cumulative_rot_angle = relative_angle  # Track cumulative rotation
-        print("Cumulative Rotation angle: ", cumulative_rot_angle)
-
-        if cumulative_rot_angle <= -10:  # Stop when desired negative rotation is reached
+        print("Overall angle in rotation 2: ", overall_angle)
+        # print("Relative angle in rotation 2: ", relative_angle)
+        if overall_angle <= 5:  # Stop when desired negative rotation is reached
             rtde_help.stopAtCurrPoseAdaptive()
             break
 
-    ##########################
-    #  NO ROTATION ADAPTIVE CONTROL - What's happening when above parts are not triggered  #
-    ###################################
+      ############################################
+      ##   HORIZONTAL MOTION AFTER ROTATION 2 
+      ############################################
+      print("I'm here!")
+      FT_help.setNowAsBias()
+      R_relative = T_overall[:3,:3] # using this to adjust Fz which has now changed due to rotation
 
-      T_rot = np.eye(4) # no rotation
-      F_normal = FT_help.averageFz_noOffset 
-      T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
-      T_move =  T_rot @ T_normal @ T_lat_originalX  
       currentPose = rtde_help.getCurrentPose()
-      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose) 
+      xAfterRotation = currentPose.pose.position.x
+      while currentPose.pose.position.x <= xAfterRotation + 0.05:
+        F_normal = FT_help.averageFz_noOffset
+        F_local = np.array([0,0, F_normal]) # in the local frame
+        F_originalZ = R_relative @ F_local # in the original frame
 
-      rtde_help.goToPoseAdaptive(targetPose, time = 0.1) 
+        #print("F_normal in local frame: ", F_local[2])
+        print("F_normal in original frame: ", F_originalZ[2])
+        #print("Current.z: ", currentPose.pose.position.z)
+        T_normal = adpt_help.get_Tmat_axialMove(F_originalZ[2], args.normalForce)
+        T_rot = np.eye(4) # no rotation
+        T_move =  T_rot @ T_normal @ T_lat_originalX 
 
+        currentPose = rtde_help.getCurrentPose()
+        targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose) 
 
+        rtde_help.goToPoseAdaptive(targetPose, time = 2, gain = 150) 
+
+      print("Overall angle in rotation 2: ", overall_angle)
       print("time elapsed: ", time.time() - startTime)
       print("============ Python UR_Interface demo complete!")
   except rospy.ROSInterruptException:
@@ -228,9 +285,27 @@ def main(args):
 if __name__ == '__main__':
   import argparse
   parser = argparse.ArgumentParser()
-  parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 10)
-  parser.add_argument('--pathlLimit', type=float, help='path-length limit for the adaptive motion (m)', default= 0.5)
-  parser.add_argument('--normalForce', type=float, help='normal force threshold', default= 0.25)  
+  parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 6)
+  parser.add_argument('--pathlLimit', type=float, help='path-length limit for the adaptive motion (m)', default= 0.6)
+  parser.add_argument('--normalForce', type=float, help='normal force threshold', default= 0.2)  
   args = parser.parse_args()    
 
   main(args)
+
+#  T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1)  # Positive Y-direction
+#         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
+#         rtde_help.goToPoseAdaptive(targetPose, time=0.01)
+
+#         currentPose = rtde_help.getCurrentPose()
+#         T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
+        
+#         T_relative = np.linalg.inv(T_start) @ T_curr
+#         relative_angle = np.arccos(T_relative[2, 2]) * 180 / np.pi  # Rotation relative to start
+        
+#         cumulative_rot_angle = relative_angle  # Track cumulative rotation
+#         print("Cumulative Rotation angle: ", cumulative_rot_angle)
+#         print("Relative angle: ", relative_angle)
+
+#         if cumulative_rot_angle >= 10:
+#             rtde_help.stopAtCurrPoseAdaptive()
+#             break
