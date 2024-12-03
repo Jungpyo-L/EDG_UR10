@@ -85,11 +85,11 @@ def main(args):
   PoseA = rtde_help.getPoseObj(PositionA, OrientationA)
 
   # Move to a location in horizontal plane. Rotate of end effector to be in correct orientation.
-  currentPose = rtde_help.getCurrentPose()
-  PositionB = [0.320, -0.200, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
-  OrientationB = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi,'sxyz') #static (s) rotating (r)
-  # Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
-  PoseB = rtde_help.getPoseObj(PositionB, OrientationB)
+  # currentPose = rtde_help.getCurrentPose()
+  # PositionB = [0.320, -0.200, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
+  # OrientationB = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi,'sxyz') #static (s) rotating (r)
+  # # Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
+  # PoseB = rtde_help.getPoseObj(PositionB, OrientationB)
 
   # We descend into media. No rotation. 
   PositionC = [0.320, -0.200, 0.3]
@@ -104,14 +104,25 @@ def main(args):
  # try block so that we can have a keyboard exception
   try:
     input("Press <Enter> to go to PoseA")
-    rtde_help.goToPose(PoseA)
+    rtde_help.goToPose(PoseA) ##########################
+    currentPose = rtde_help.getCurrentPose()
     rospy.sleep(1)
+
     input("Press <Enter> to go to PoseB")
-    rtde_help.goToPose(PoseB)
+    currentPose = rtde_help.getCurrentPose()
+    PositionB = [0.320, -0.200, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
+    OrientationB = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi,'sxyz') #static (s) rotating (r)
+    #   Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
+    PoseB = rtde_help.getPoseObj(PositionB, OrientationB)
+    rtde_help.goToPose(PoseB) ##########################
+    currentPose = rtde_help.getCurrentPose()
     rospy.sleep(1)
+
     input("Press <Enter> to go to PoseC")
-    rtde_help.goToPose(PoseC)
+    rtde_help.goToPose(PoseC) ##########################
     rospy.sleep(1)
+    currentPose = rtde_help.getCurrentPose()
+    
 
     FT_help.setNowAsBias() # offset the force sensor, zeros gravity and other forces
 
@@ -131,13 +142,13 @@ def main(args):
     while (time.time() - startTime) < args.timeLimit: # trials for 10 seconds
       currentPose = rtde_help.getCurrentPose()
       T_start = adpt_help.get_Tmat_from_Pose(currentPose)
-      print("Currrent.z: ", currentPose.pose.position.z)
+     ## print("Currrent.z: ", currentPose.pose.position.z)
 
       ######################
       # ADAPTIVE MOTION WHILE LATERAL MOVEMENT HAPPENS ######### WORKS!
       ######################
       while time.time() - startTime < 1: # 2.5 seconds
-        print("Currrent.z: ", currentPose.pose.position.z)
+        ## print("Currrent.z: ", currentPose.pose.position.z)
         # adpt_help.d_lat = 30e-3 # 10 mm/s
         currentPose = rtde_help.getCurrentPose()
 
@@ -154,7 +165,7 @@ def main(args):
       # Rotate in the positive direction
       # For the first rotation, we don't need to track two different angles. 
       overall_angle = 0  # Initialize cumulative rotation angle
-      print("I'm here!")
+      ## print("I'm here!")
       while overall_angle <= 45:
         adpt_help.dw = 0.1
         T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1)  # Positive Y-direction
@@ -181,7 +192,7 @@ def main(args):
       #############################################
       #     HORIZONTAL MOTION AFTER ROTATION 1  
       #############################################
-      print("I'm here!")
+     ##  print("I'm here!")
       FT_help.setNowAsBias()
       R_relative = T_overall[:3,:3] # using this to adjust Fz which has now changed due to rotation
 
@@ -192,13 +203,19 @@ def main(args):
         F_local = np.array([0,0, F_normal]) # in the local frame
         F_originalZ = R_relative @ F_local # in the original frame
 
-        #print("F_normal in local frame: ", F_local[2])
-        print("F_normal in original frame: ", F_originalZ[2])
+        ##print("F_normal in local frame: ", F_local[2])
+        ## print("F_normal in original frame: ", F_originalZ[2])
         T_normal = adpt_help.get_Tmat_axialMove(F_originalZ[2], args.normalForce)
         T_rot = np.eye(4) # no rotation
         T_move =  T_rot @ T_normal @ T_lat_originalX 
 
         currentPose = rtde_help.getCurrentPose()
+      #####
+        z_position = np.array([0,0, currentPose.pose.position.z]) # in the local frame
+        z_position = R_relative @ z_position # in the original frame
+        ## print("Z in local frame: ", z_position[2])
+        ## print("Z in original frame: ", currentPose.pose.position.z)
+      #####  
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose) 
 
         rtde_help.goToPoseAdaptive(targetPose, time = 2, gain = 150) 
@@ -213,7 +230,7 @@ def main(args):
       # a second angle is defined here to track changes from the frame that the tool is in 
       # after the first rotation. We want the difference between this relative angle and
       # the overall angle to be the angle desired. 
-      print("Overall angle: ", overall_angle)
+      #print("Overall angle: ", overall_angle)
       currentPose = rtde_help.getCurrentPose()
       T_frame2 = adpt_help.get_Tmat_from_Pose(currentPose) # the frame we are starting in 
 
@@ -241,7 +258,7 @@ def main(args):
         if T_relative[2, 0] > 0:  # Check direction of rotation based on off-diagonal terms
             relative_angle = -relative_angle
         
-        print("Overall angle in rotation 2: ", overall_angle)
+       # print("Overall angle in rotation 2: ", overall_angle)
         # print("Relative angle in rotation 2: ", relative_angle)
         if overall_angle <= 5:  # Stop when desired negative rotation is reached
             rtde_help.stopAtCurrPoseAdaptive()
@@ -250,7 +267,7 @@ def main(args):
       ############################################
       ##   HORIZONTAL MOTION AFTER ROTATION 2 
       ############################################
-      print("I'm here!")
+      #print("I'm here!")
       FT_help.setNowAsBias()
       R_relative = T_overall[:3,:3] # using this to adjust Fz which has now changed due to rotation
 
@@ -262,20 +279,28 @@ def main(args):
         F_originalZ = R_relative @ F_local # in the original frame
 
         #print("F_normal in local frame: ", F_local[2])
-        print("F_normal in original frame: ", F_originalZ[2])
-        #print("Current.z: ", currentPose.pose.position.z)
+        #print("F_normal in original frame: ", F_originalZ[2])
+        ## print("Current.z: ", currentPose.pose.position.z)
         T_normal = adpt_help.get_Tmat_axialMove(F_originalZ[2], args.normalForce)
         T_rot = np.eye(4) # no rotation
         T_move =  T_rot @ T_normal @ T_lat_originalX 
 
         currentPose = rtde_help.getCurrentPose()
+        ####
+        z_position = np.array([0,0, currentPose.pose.position.z]) # in the local frame
+        z_position = R_relative @ z_position # in the original frame
+        print("Z in local frame: ", z_position[2])
+        print("Z in original frame: ", currentPose.pose.position.z)
+        ####
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose) 
 
         rtde_help.goToPoseAdaptive(targetPose, time = 2, gain = 150) 
 
       print("Overall angle in rotation 2: ", overall_angle)
-      print("time elapsed: ", time.time() - startTime)
-      print("============ Python UR_Interface demo complete!")
+    print("time elapsed: ", time.time() - startTime)
+    currentPose = rtde_help.getCurrentPose()
+    print("End pose: ", currentPose)
+    print("============ Python UR_Interface demo complete!")
   except rospy.ROSInterruptException:
     return
   except KeyboardInterrupt:
@@ -287,7 +312,7 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 6)
   parser.add_argument('--pathlLimit', type=float, help='path-length limit for the adaptive motion (m)', default= 0.6)
-  parser.add_argument('--normalForce', type=float, help='normal force threshold', default= 0.2)  
+  parser.add_argument('--normalForce', type=float, help='normal force threshold', default= 0.1)  
   args = parser.parse_args()    
 
   main(args)
