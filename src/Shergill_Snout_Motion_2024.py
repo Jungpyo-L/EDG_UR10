@@ -108,7 +108,7 @@ def main(args):
   # Creating new objects to use for the rotation
   # d_w is a speed paramter. It is the speed of the rotation in radians per second.
   # d_lat is a speed parameter. It is the speed of the lateral motion in meters per second.
-  # d_z is a speed parameter. It is the speed of the vertical motion in meters per second.
+  # d_z is a speed parrameter. It is the speed of the vertical motion in meters per second.
   RotationA = adaptMotionHelp()
   RotationA.d_w = 0.01; RotationA.d_lat = 10e-3; RotationA.d_z = 5e-3
   RotationB = adaptMotionHelp() 
