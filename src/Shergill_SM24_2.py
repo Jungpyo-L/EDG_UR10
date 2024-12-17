@@ -155,8 +155,9 @@ def main(args):
       # ADAPTIVE MOTION WHILE LATERAL MOVEMENT HAPPENS #
       ##################################################
       currentPose = rtde_help.getCurrentPose()
+      print("startPose: ", currentPose)
       current_x = currentPose.pose.position.x
-      while currentPose.pose.position.x <= current_x + 0.05: 
+      while currentPose.pose.position.x <= current_x + 0.01: 
         # # Horizontal motion
         # T_horiz = adpt_help.get_Tmat_TranlateInX(direction = -1) # move in the negative x direction
         # Vertical adaptive motion 
@@ -164,18 +165,22 @@ def main(args):
         T_normal = adpt_help.get_Tmat_axialMove(Fz, F_normalThres)
         # Combine the motion
         T_move = T_horiz_world @ T_normal
+        # print("T_move: \n", T_move)
         # Get the target poseR_relative
         currentPose = rtde_help.getCurrentPose()
+       # print("Current pose: ", currentPose)
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
         # Check if the motion is significant to avoid unnecessary motion
         if significant_motion_check(currentPose, targetPose):
           rtde_help.goToPoseAdaptive(targetPose, time=0.05)
 
+        currentPose = rtde_help.getCurrentPose()
+
     ##################################################
     #                  ROTATION 1                    #
     ##################################################
     while overall_angle <= 10: # positive rotation
-      adpt_help.dw = 0.1
+      adpt_help.dw = 0.01
       T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # Positive Y-direction  
       currentPose = rtde_help.getCurrentPose()
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
@@ -186,7 +191,7 @@ def main(args):
       T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
       T_overall = np.linalg.inv(T_start) @ T_curr # loca frame to the world frame
       # Angle relative to the start
-      overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
+      overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi # may want to use a different angle
 
       # Not needed here since we know the direction of rotation and want a final positive angle, will be useful in the future
       # if T_overall[2, 0] > 0:  # Check direction of rotation based on off-diagonal terms
@@ -201,25 +206,31 @@ def main(args):
     #######################################################################################
     FT_help.setNowAsBias() # zero gravity and other forces
     R_relative = T_overall[:3,:3] 
-    T_rot = np.eye(4)
-    T_rot[:3, :3] = R_relative # embedding the rotation matrix from first rotation into the transformation matrix
-    print("R_relative: \n", R_relative)
+    tvec_horiz_world = np.array([-0.01, 0, 0]) # move in the negative x direction in the world frame
+    t_local = R_relative.T @ tvec_horiz_world # move 
+    T_horiz_local = np.eye(4)
+    T_horiz_local[:3, 3] = t_local 
+    # T_rot = np.eye(4)
+    # T_rot[:3, :3] = R_relative # embedding the rotation matrix from first rotation into the transformation matrix
+    # print("R_relative: \n", R_relative)
     currentPose = rtde_help.getCurrentPose()
     current_x = currentPose.pose.position.x
-    while currentPose.pose.position.x <= current_x + 0.03:
+
+    while currentPose.pose.position.x <= current_x + 0.1:
       # horizontal motion
-      T_horiz_local = np.linalg.inv(T_rot) @ T_horiz_world # move in the negative x direction in the local frame
+      #T_horiz_local = T_horiz_world # move in the negative x direction in the local frame
       # vertical adaptive motion
       # Fz = FT_help.averageFz_noOffset
       # T_normal = adpt_help.get_Tmat_axialMove(Fz, F_normalThres)
-      # T_vertical_local = np.linalg.inv(T_rot) @ T_vertical_world # move in the positive z direction in the local frame
-      # T_combined_vertical = T_vertical_local @ T_normal # combines the effect of the force readings with the world frame vertical motion 
+      # print("T_normal: \n", T_normal)
+      # T_vertical_local = T_vertical_world # move in the positive z direction in the local frame
+      # T_combined_vertical = T_normal # @ T_vertical_local # combines the effect of the force readings with the world frame vertical motion 
 
       # Combine the motions
       # T_move = T_horiz_local @ T_combined_vertical
       T_move = T_horiz_local
-      print("T_move: \n", T_move)
-      print("T_horiz_local: \n", T_horiz_local)
+      # print("T_move: \n", T_move)
+      # print("T_horiz_local: \n", T_horiz_local)
       # print("T_combined_vertical: \n", T_combined_vertical)
       # Get the target pose
       currentPose = rtde_help.getCurrentPose()
@@ -232,6 +243,44 @@ def main(args):
     ##################################################
 
     ##################################################
+
+    currentPose = rtde_help.getCurrentPose()
+    print("End pose: ", currentPose)
+    print("overall_angle: ", overall_angle)
+    current_x = currentPose.pose.position.x
+
+    # Quaternion components
+    qx = currentPose.pose.orientation.x
+    qy = currentPose.pose.orientation.y
+    qz = currentPose.pose.orientation.z
+    qw = currentPose.pose.orientation.w
+
+    # Convert quaternion to rotation matrix
+    rotation_matrix = np.array([
+        [1 - 2 * (qy**2 + qz**2), 2 * (qx * qy - qz * qw), 2 * (qx * qz + qy * qw)],
+        [2 * (qx * qy + qz * qw), 1 - 2 * (qx**2 + qz**2), 2 * (qy * qz - qx * qw)],
+        [2 * (qx * qz - qy * qw), 2 * (qy * qz + qx * qw), 1 - 2 * (qx**2 + qy**2)]
+    ])
+
+    # Extract roll, pitch, and yaw
+    # Roll (x-axis rotation)
+    roll = np.arctan2(rotation_matrix[2, 1], rotation_matrix[2, 2])
+
+    # Pitch (y-axis rotation)
+    # Clamping to avoid numerical instability
+    pitch = np.arcsin(-rotation_matrix[2, 0])
+
+    # Yaw (z-axis rotation)
+    yaw = np.arctan2(rotation_matrix[1, 0], rotation_matrix[0, 0])
+
+    # Convert to degrees
+    roll_deg = np.degrees(roll)
+    pitch_deg = np.degrees(pitch)
+    yaw_deg = np.degrees(yaw)
+
+    print(f"Roll (x-axis): {roll_deg:.2f} degrees")
+    print(f"Pitch (y-axis): {pitch_deg:.2f} degrees")
+    print(f"Yaw (z-axis): {yaw_deg:.2f} degrees")
     print("time elapsed: ", time.time() - startTime)
     # currentPose = rtde_help.getCurrentPose()
     # print("End pose: ", currentPose)
