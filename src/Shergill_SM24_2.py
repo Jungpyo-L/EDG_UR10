@@ -206,18 +206,19 @@ def main(args):
     #######################################################################################
     FT_help.setNowAsBias() # zero gravity and other forces
     R_relative = T_overall[:3,:3] 
+
+    # Dealing with the horizontal motion in the local frame after rotation
     tvec_horiz_world = np.array([-0.01, 0, 0]) # move in the negative x direction in the world frame
     t_local = R_relative.T @ tvec_horiz_world # move 
     T_horiz_local = np.eye(4)
     T_horiz_local[:3, 3] = t_local 
-    # T_rot = np.eye(4)
-    # T_rot[:3, :3] = R_relative # embedding the rotation matrix from first rotation into the transformation matrix
-    # print("R_relative: \n", R_relative)
+
+    # Preparing for the next horizontal segment
     currentPose = rtde_help.getCurrentPose()
     current_x = currentPose.pose.position.x
 
     while currentPose.pose.position.x <= current_x + 0.1:
-      # horizontal motion
+      # horizontal motion 
       #T_horiz_local = T_horiz_world # move in the negative x direction in the local frame
       # vertical adaptive motion
       # Fz = FT_help.averageFz_noOffset
