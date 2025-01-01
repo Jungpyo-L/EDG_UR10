@@ -150,6 +150,7 @@ def main(args):
 
     overall_angle = 0 # Initialize cumulative rotation angle 
     ########################################
+    ## GET RID OF THIS WHILE LOOP
     while (time.time() - startTime) < args.timeLimit: # trials for 10 seconds
       ##################################################
       # ADAPTIVE MOTION WHILE LATERAL MOVEMENT HAPPENS #
@@ -209,30 +210,34 @@ def main(args):
 
     # Dealing with the horizontal motion in the local frame after rotation
     tvec_horiz_world = np.array([-0.01, 0, 0]) # move in the negative x direction in the world frame
-    t_local = R_relative.T @ tvec_horiz_world # move 
-    T_horiz_local = np.eye(4)
-    T_horiz_local[:3, 3] = t_local 
+    t_horiz_local = R_relative.T @ tvec_horiz_world # translation VECTOR for horizontal motion
+    # T_Horiz_Local = np.eye(4)
+    # T_Horiz_Local[:3, 3] = t_local 
 
     # Preparing for the next horizontal segment
     currentPose = rtde_help.getCurrentPose()
     current_x = currentPose.pose.position.x
 
     while currentPose.pose.position.x <= current_x + 0.1:
-      # horizontal motion 
-      #T_horiz_local = T_horiz_world # move in the negative x direction in the local frame
-      # vertical adaptive motion
-      # Fz = FT_help.averageFz_noOffset
-      # T_normal = adpt_help.get_Tmat_axialMove(Fz, F_normalThres)
-      # print("T_normal: \n", T_normal)
-      # T_vertical_local = T_vertical_world # move in the positive z direction in the local frame
-      # T_combined_vertical = T_normal # @ T_vertical_local # combines the effect of the force readings with the world frame vertical motion 
+      # Horizontal motion defined in a TRANSLATION VECTOR previously outside of this loop
+      # Dealing with the vertical motion in the local frame after rotation
+      Fz = FT_help.averageFz_noOffset
+      T_normal = adpt_help.get_Tmat_axialMove(Fz, F_normalThres)
+      t_vertical_local = T_normal[:3, 3]
+      # Transform to World Coordinates
+      t_vertical_world = R_relative @ t_vertical_local
+      # Project Motion Back to Local Vertical Axis Thereby "Correcting" It
+      Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) # world vertical axis is given by this 
+      magnitude = np.dot(t_vertical_local, Vertical_Axis_Local)
+      t_corrected_local = magnitude*Vertical_Axis_Local
 
       # Combine the motions
-      # T_move = T_horiz_local @ T_combined_vertical
-      T_move = T_horiz_local
+      t_move = t_combined_vertical + t_horiz_local
+      T_move = np.eye(4)
+      T_move[:3,3] = t_move
+      # T_move = T_horiz_local
       # print("T_move: \n", T_move)
-      # print("T_horiz_local: \n", T_horiz_local)
-      # print("T_combined_vertical: \n", T_combined_vertical)
+      
       # Get the target pose
       currentPose = rtde_help.getCurrentPose()
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
