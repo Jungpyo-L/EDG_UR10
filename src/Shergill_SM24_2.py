@@ -229,10 +229,10 @@ def main(args):
       # Project Motion Back to Local Vertical Axis Thereby "Correcting" It
       Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) # world vertical axis is given by this 
       magnitude = np.dot(t_vertical_local, Vertical_Axis_Local)
-      t_corrected_local = magnitude*Vertical_Axis_Local
+      t_vertical_local = magnitude*Vertical_Axis_Local
 
       # Combine the motions
-      t_move = t_combined_vertical + t_horiz_local
+      t_move = t_vertical_local + t_horiz_local
       T_move = np.eye(4)
       T_move[:3,3] = t_move
       # T_move = T_horiz_local
@@ -245,9 +245,53 @@ def main(args):
       if significant_motion_check(currentPose, targetPose):
         rtde_help.goToPoseAdaptive(targetPose, time=0.05)
     ##################################################
+    ##################################################
+    # VERTICAL MOTION FROM ALL COMPONENTS
+    # Get the force vector
+    Fx = FT_help.averageFx_noOffset
+    Fy = FT_help.averageFy_noOffset
+    Fz = FT_help.averageFz_noOffset
+    # Define a force vector
+    F_local = np.array([Fx, Fy, Fz])
+    # Transform to world frame
+    F_world = R_relative @ F_local
+    F_vertical_world = np.array([0,0, F_world[2]]) # z-component has now been isolated
+    # Transform from world back to local frame
+    F_vertical_local = R_relative.T @ F_vertical_world
+
+    # Define transformation vector 
+    T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local, F_normalThres)
+    t_vertical_local = T_normal[:3, 3]
+    # Transform to World Coordinates
+    t_vertical_world = R_relative @ t_vertical_local
+    # Project Motion Back to Local Vertical Axis Thereby "Correcting" It
+    Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) # world vertical axis is given by this 
+    magnitude = np.dot(t_vertical_local, Vertical_Axis_Local)
+    t_vertical_local = magnitude*Vertical_Axis_Local
+
+     # Combine the motions
+    t_move = t_vertical_local + t_horiz_local
+    T_move = np.eye(4)
+    T_move[:3,3] = t_move
+    # T_move = T_horiz_local
+    # print("T_move: \n", T_move)
+      
+    # Get the target pose
+    currentPose = rtde_help.getCurrentPose()
+    targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
+    # Check if the motion is significant to avoid unnecessary motion
+    if significant_motion_check(currentPose, targetPose):
+      rtde_help.goToPoseAdaptive(targetPose, time=0.05)
+                                
+    ##################################################
     #                  ROTATION 2                    #
     ##################################################
+    
 
+
+
+
+    
     ##################################################
 
     currentPose = rtde_help.getCurrentPose()
@@ -368,7 +412,6 @@ if __name__ == '__main__':
     #     targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
     #     if significant_motion_check(currentPose, targetPose):
     #       rtde_help.goToPoseAdaptive(targetPose, time=0.05)
-    #   # $ #
 
 
     #     # ## print("Currrent.z: ", currentPose.pose.position.z)
