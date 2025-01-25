@@ -1,2 +1,3 @@
 /endEffectorPose
 /netft_data
+/sync
