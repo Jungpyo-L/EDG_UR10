@@ -9,7 +9,7 @@
 ###########################################################################
 # Authors: Nimran Shergill, Jungpyo Lee
 # Create: 11.25.2024
-# Last update: 11.25.2024
+# Last update: see Git repo
 # Description: This script is primarily for basic robot control using UR10e robot. 
 # It first moves to initial position (position A), then it move position A (poseA) to B (poseB) and rotate by 45 degrees in y-axis (poseC).
 
@@ -86,30 +86,30 @@ def main(args):
   file_help = fileSaveHelp()
   adpt_help = adaptMotionHelp(d_w = 15,d_lat = 10e-3, d_z= 5e-3)
 
-  class PID:
-    def __init__(self, setpoint, kp=0.0, ki=0.0, kd=0.0):
-      self.kp = kp
-      self.ki = ki
-      self.kd = kd
-      self.setpoint = setpoint
-      self.prev_error = 0
-      self.integral = 0
+  # class PID:
+  #   def __init__(self, setpoint, kp=0.0, ki=0.0, kd=0.0):
+  #     self.kp = kp
+  #     self.ki = ki
+  #     self.kd = kd
+  #     self.setpoint = setpoint
+  #     self.prev_error = 0
+  #     self.integral = 0
 
-      self.prev_time = time.time()
+  #     self.prev_time = time.time()
 
-    def update(self, current_position):
+  #   def update(self, current_position):
 
-      error = self.setpoint - current_position
-      self.integral += error
-      derivative = error - self.prev_error
+  #     error = self.setpoint - current_position
+  #     self.integral += error
+  #     derivative = error - self.prev_error
 
-      current_time = time.time()
-      dt = current_time - self.prev_time
+  #     current_time = time.time()
+  #     dt = current_time - self.prev_time
 
-      self.prev_error = error
-      self.prev_time = current_time
+  #     self.prev_error = error
+  #     self.prev_time = current_time
 
-      return self.kp * error + self.ki * self.integral * dt + self.kd * derivative / dt
+  #     return self.kp * error + self.ki * self.integral * dt + self.kd * derivative / dt
 
   def low_pass_filter(new_value, previous_value, alpha=0.1):
     return alpha * new_value + (1 - alpha) * previous_value
@@ -151,7 +151,7 @@ def main(args):
   PoseA = rtde_help.getPoseObj(PositionA, OrientationA)
 
   # We descend into media. No rotation. 
-  PositionC = [0.320, -0.200, 0.08]
+  PositionC = [0.320, -0.200, 0.12]
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
   #############################################################################################################################
