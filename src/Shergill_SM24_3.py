@@ -189,6 +189,7 @@ def main(args):
   #                  # HORIZ 2 #                   #
   #                  # edit lines 207              #
   ##################################################
+    FT_help.setNowAsBias() # offset the force sensor, zeros gravity and other forces
     R_relative = T_overall[:3,:3] 
     # Dealing with the horizontal motion in the local frame after rotation
     t_horiz_local = R_relative.T @ tvec_horiz_world # translation VECTOR for horizontal motion
@@ -239,6 +240,7 @@ def main(args):
   #                  # HORIZ 3 #                   #
   #                  # edit lines 256              #
   ##################################################
+    FT_help.setNowAsBias() # offset the force sensor, zeros gravity and other forces
     R_relative = T_overall[:3,:3] 
     # Dealing with the horizontal motion in the local frame after rotation
     t_horiz_local = R_relative.T @ tvec_horiz_world # translation VECTOR for horizontal motion
@@ -287,6 +289,7 @@ def main(args):
   #                  # HORIZ 4 #                   #
   #                   # edit lines 304             #
   ##################################################
+    FT_help.setNowAsBias() # offset the force sensor, zeros gravity and other forces
     R_relative = T_overall[:3,:3] 
     # Dealing with the horizontal motion in the local frame after rotation
     t_horiz_local = R_relative.T @ tvec_horiz_world # translation VECTOR for horizontal motion
@@ -335,6 +338,7 @@ def main(args):
   #                  # HORIZ 5 #                   #
   #                   # edit lines 351             #
   ##################################################
+    FT_help.setNowAsBias() # offset the force sensor, zeros gravity and other forces
     R_relative = T_overall[:3,:3] 
     # Dealing with the horizontal motion in the local frame after rotation
     t_horiz_local = R_relative.T @ tvec_horiz_world # translation VECTOR for horizontal motion

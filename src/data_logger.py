@@ -6,218 +6,249 @@ import rosgraph
 import time
 from roslib.message import get_message_class
 from std_msgs.msg import *
-from edg_ur10.srv import *
+from suction_cup.srv import *
 from rospy.msg import AnyMsg
 import numbers
 import collections
 from operator import attrgetter
-
 from datetime import datetime
 
-
-#Current state of logging
+# Current state of logging
 isLoggingEnabled = False
 logJustStarted = 0
-#List of topics to record
+
+# List of topics to record
 listOfTopics = []
 
-######################## Tae
-#List of Attributes per each Topic (i.e. "topic 1 : [attr1, attr2, attr3]")
+########################
+# For each topic, which attributes do we log?
+#   e.g.  "topic_name" : { "attr1":1, "attr2":5, "attr3":1, ...}
 listOfAttributesInTopic = {}
-#call will check if the dictionary above is filled for the given topic
 
-#Data record before it gets dumped in the CSV file
+# Data record before it gets dumped in the CSV file
 record = {}
-# record should be topic/listOfAttribute : Value, rather than topic:Value
 
-
-
-######################################33
-
-#List of Subscribers so we can easily Unsubscribe to topics.
+# For unsubscribing easily
 listOfSubscribers = []
 
-#List of available topics and their corresponding types
+# All available topics (from master) and their corresponding types
 topic_types = []
 
-
-#Output CSV file used, a new file is generated every time the user starts a
-#new data logging process.
+# Output CSV file references
 output_file_name = {}
 output_file = {}
 all_output_file_names = ""
 
-#New appendData, it makes files for each topic
+
 def appendDataPoint(topic, msg):
-    global record
-    global listOfAttributesInTopic
-    global listOfTopics
-    global output_file
-    global logJustStarted
-    
-    #Take values of attributes in the msg.
+    """
+    Append one line of CSV data for `topic`, reading the numeric fields in `msg`.
+    """
+    global listOfAttributesInTopic, output_file
+
+    # Build a dictionary: { attributeName -> value }
     thisDataDict = {}
-    for attributName in list(listOfAttributesInTopic[topic].keys()):
-        retriever = attrgetter(attributName)
+    for attributeName in list(listOfAttributesInTopic[topic].keys()):
+        retriever = attrgetter(attributeName)  # e.g. 'x' or 'data/2'
         value = retriever(msg)
-        thisDataDict.update({attributName:value})
-    
-    #check if header has stamp    
-    thisTimeStamp = rospy.get_rostime()        
-    
-    # retrive header time stamp if exist
+        thisDataDict[attributeName] = value
+
+    # Default timestamp = now
+    thisTimeStamp = rospy.get_rostime()
+
+    # If the message has a header.stamp, prefer that
     if hasattr(msg, "header"):
         try:
-            retriever = attrgetter("header.stamp")
-            timeVal = retriever(msg)
-            if timeVal.secs > 0:
-                thisTimeStamp = timeVal
+            stamp = attrgetter("header.stamp")(msg)
+            if stamp.secs > 0:
+                thisTimeStamp = stamp
         except Exception:
-            pass        
-    
-    line = str(thisTimeStamp)+','
+            pass
 
-    #For each topic, append its value    
-    for attributName in list(listOfAttributesInTopic[topic].keys()):
-        try:
-            thisDataStr = str(thisDataDict[attributName])
-            if listOfAttributesInTopic[topic][attributName] >1: # value is list or tuple
-                thisDataStr = thisDataStr[1:-1]
-            line += thisDataStr + ','
-        except KeyError as e:
-            line += ','
-    line = line[0:-1] + '\n'        
+    # Start building the CSV line: first column is the ROS time
+    # Note: str(thisTimeStamp) typically prints the full format, e.g. "1736204679.474882..."
+    line = "{},".format(thisTimeStamp)
+
+    # Next columns: each attribute's value
+    for attributeName in list(listOfAttributesInTopic[topic].keys()):
+        val = thisDataDict[attributeName]
+        # Convert to string
+        val_str = str(val)
+
+        # If the attribute is a list/tuple, remove brackets
+        # We know it's a list if our dictionary says so
+        if listOfAttributesInTopic[topic][attributeName] > 1:
+            val_str = val_str[1:-1]  # remove [ and ] from e.g. "[0.1, 0.2]"
+
+        line += val_str + ","
+
+    # Remove trailing comma, add newline
+    line = line[:-1] + "\n"
+
+    # Write it out
     output_file[topic].write(line)
 
 
-
-#Wait until we get at least one value from each topic and then
-#append the CSV file with the informations.
-
 def updateListofAttribute(topic, msg, attributeName=""):
+    """
+    Recursively discover numeric fields in `msg` and store them in
+    listOfAttributesInTopic[topic].
+    """
     global listOfAttributesInTopic
-    #Search for the attribute that is numeric
-    # print attributeName
-    
-    if hasattr(msg, "__slots__"):        
-        thisSlotList = msg.__slots__ 
-        for tempSlotName in thisSlotList:
-            if tempSlotName != "header": 
-                updateListofAttribute(topic,getattr(msg, tempSlotName), attributeName+"."+tempSlotName)
-    
-    elif isinstance(msg, numbers.Number): # check if the attributed msg is single Number
+
+    # If msg is a ROS message with __slots__
+    if hasattr(msg, "__slots__"):
+        for slotName in msg.__slots__:
+            if slotName == "header":
+                continue
+            slotValue = getattr(msg, slotName)
+            updateListofAttribute(topic, slotValue, attributeName + "." + slotName)
+
+    # If msg is a single numeric (int/float)
+    elif isinstance(msg, numbers.Number):
         if topic not in listOfAttributesInTopic:
-            listOfAttributesInTopic[topic]={}
-        
-        listOfAttributesInTopic[topic].update({attributeName[1:]:1}) # remove the front dot in the attribute name
+            listOfAttributesInTopic[topic] = {}
+        # attributeName starts with "." so skip that
+        cleanedName = attributeName[1:]
+        listOfAttributesInTopic[topic][cleanedName] = 1  # single numeric value
         return
 
-    elif (isinstance(msg, list) or isinstance(msg, tuple)) and (bool(msg) and isinstance(msg[0], numbers.Number)) : # check if the attributed msg is List
+    # If msg is a list/tuple of numeric
+    elif (isinstance(msg, (list, tuple))
+          and msg
+          and isinstance(msg[0], numbers.Number)):
         if topic not in listOfAttributesInTopic:
-            listOfAttributesInTopic[topic]={}
-        
-        listOfAttributesInTopic[topic].update({attributeName[1:]:len(msg)}) # remove the front dot in the attribute name
-        return        
+            listOfAttributesInTopic[topic] = {}
+        cleanedName = attributeName[1:]
+        listOfAttributesInTopic[topic][cleanedName] = len(msg)  # length of numeric array
+        return
+
+    # Otherwise, skip non-numeric or empty
     return
 
+
 def writeFileHeader(topic):
-    global listOfAttributesInTopic
-    global output_file
-    #Write the header of the CSV file with all the topic names
-    header = 'ROStimestamp,'    
-    for attributName in list(listOfAttributesInTopic[topic].keys()):
-        for i in range(listOfAttributesInTopic[topic][attributName]):
-            header = header + topic +'.' + attributName + ','
+    """
+    Write one CSV header line for `topic`, enumerating the discovered attributes.
+    """
+    global listOfAttributesInTopic, output_file
 
-    header = header[0:-1] + '\n'
+    header = "ROStimestamp,"
+    for attributeName in list(listOfAttributesInTopic[topic].keys()):
+        count = listOfAttributesInTopic[topic][attributeName]
+        if count > 1:
+            # e.g., if we have array of length 3, produce: topic.attr[0], topic.attr[1], ...
+            for i in range(count):
+                header += "{}.{}[{}],".format(topic, attributeName, i)
+        else:
+            header += "{}.{},".format(topic, attributeName)
+
+    # Remove trailing comma, add newline
+    header = header[:-1] + "\n"
     output_file[topic].write(header)
-    
 
 
-#This callback function is triggered every time a message was sent to a
-#subscribed topic.
 def callback(data, args):
-    global listOfAttributesInTopic
+    """
+    Subscriber callback for AnyMsg. We look up the actual message type,
+    deserialize it, and then log it to CSV.
+    """
+    # First, if logging is not enabled, do nothing.
+    if not isLoggingEnabled:
+        return
 
-
-    #Assume that the first argument represents the name of the type of the message
     topic = args[0]
     msg_name = args[1]
-    # print(args)
-    # print(f"msg_name: '{msg_name}'")
 
-    #Retrieve the class associated with that message name
+    # Safety check: if the file got closed but we still get a message, skip
+    if topic not in output_file or output_file[topic].closed:
+        rospy.logwarn("File for topic '%s' is already closed or missing. Skipping data.", topic)
+        return
+
+    # E.g. "suction_cup/SensorPacket"
     msg_class = get_message_class(msg_name)
-    #Transform the message data into an instance of the message class
+    if not msg_class:
+        rospy.logerr("Failed get_message_class(%s). Are you sure it's built?", msg_name)
+        return
+
+    # Deserialize the AnyMsg
     msg = msg_class().deserialize(data._buff)
 
-    # add the topic to the attribute list
+    # If first time seeing this topic, discover numeric fields & write CSV headers
     if topic not in listOfAttributesInTopic:
-        #update the list of attributes in that topic
         updateListofAttribute(topic, msg)
-        
-        #sort List of attributes and write headers for each file
-        listOfAttributesInTopic[topic] = collections.OrderedDict(sorted(listOfAttributesInTopic[topic].items()))
+        # Sort the attributes (optional, for consistent order)
+        listOfAttributesInTopic[topic] = collections.OrderedDict(
+            sorted(listOfAttributesInTopic[topic].items())
+        )
         writeFileHeader(topic)
-    
+
+    # Actually write out one CSV line
     appendDataPoint(topic, msg)
-    
 
 
-
-#Iterates over the list of subscribers and unregister them in order to stop
-#the callback functions from being triggered.
 def unsubscribeAllTopics():
-    global listOfTopics
-    global listOfSubscribers
-    global listOfAttributesInTopic
+    """
+    Unsubscribe from all topics and clear data structures.
+    """
+    global listOfTopics, listOfSubscribers, listOfAttributesInTopic
 
     for sub in listOfSubscribers:
         sub.unregister()
 
-    listOfTopics = list()
-    listOfSubscribers = list()
-    listOfAttributesInTopic = {}
+    listOfSubscribers.clear()
+    listOfTopics.clear()
+    listOfAttributesInTopic.clear()
 
-#Reads a list of ROS topics from the configuration file into a global list
+
 def loadConfigFile(filePath):
-    global listOfTopics
-    global listOfSubscribers
-    global topic_types
-    #Reset the subscription
+    """
+    Read a list of topics from filePath. For each topic, find a matching type in topic_types
+    and subscribe with AnyMsg + callback.
+    """
+    global listOfTopics, listOfSubscribers, topic_types
+
+    # Clean up old subscriptions
     unsubscribeAllTopics()
 
-    #Iterates over every line of the configuration file and subscribe to each
-    #topic.
+    rospy.loginfo("Master reports these topics:")
+    for (tp, ty) in topic_types:
+        rospy.loginfo("  %s -> %s", tp, ty)
+
+    # Read each line from config
     with open(filePath) as fp:
         for line in fp:
-            #The line contains one or more newline characters that needs to be removed
-            topic = line.replace('\n','').replace('\r','').replace(' ','')
-            #Retrieve the message type associated with that topic
+            topic_str = line.strip()  # remove newline/spaces
+            if not topic_str:
+                continue
+
+            # If your published topics always begin with '/', you can force it:
+            # if not topic_str.startswith("/"):
+            #     topic_str = "/" + topic_str
+
+            # Now see if we can find a type match
             msg_name = ""
-            for couple in topic_types:
-                tp = couple[0]
-                ty = couple[1]
-                if tp == topic:
+            for (tp, ty) in topic_types:
+                if tp == topic_str:
                     msg_name = ty
-            print("Input Result")                
-            print(topic)
-            print(msg_name)
-            #As not every topic uses the same type of message, AnyMsg is used.
-            #http://docs.ros.org/melodic/api/rospy/html/rospy.msg.AnyMsg-class.html
-            #The message name is passed as an argument so the callback function can use it
-            sub = rospy.Subscriber(topic, AnyMsg, callback, (topic,msg_name))
-            #It is very important that the n-th subscriber correponds to the n-th topic
-            #in these lists as its assumed afterward.
-            listOfTopics.append(topic)
+                    break
+
+            if not msg_name:
+                rospy.logwarn("No matching type found for topic '%s'. Check if it's published or spelled correctly.", 
+                              topic_str)
+                continue
+
+            # Subscribe
+            sub = rospy.Subscriber(topic_str, AnyMsg, callback, (topic_str, msg_name))
+            listOfTopics.append(topic_str)
             listOfSubscribers.append(sub)
-            print("Msg Name")
-            print(msg_name)
+            rospy.loginfo("Subscribed to '%s' with type '%s'", topic_str, msg_name)
 
 
-#This callback function sets the state of the logging process (Enabled or Disable)
-#when the user calls this service.
 def setLoggingState(request):
+    """
+    Service callback: start or stop logging to CSV files based on request.
+    """
     global isLoggingEnabled
     global output_file
     global output_file_name
@@ -226,79 +257,74 @@ def setLoggingState(request):
     global record
     global logJustStarted
 
-    #This field of the request object contains the value set by the user when
-    #calling this service.
-    desiredState = request.EnableDataLogging
+    desiredState = request.EnableDataLogging  # True/False
 
-    #Enable logging
-    if desiredState == True:
-        #If its not already in that state
+    # Enable logging
+    if desiredState:
         if isLoggingEnabled != desiredState:
-            #Loads the tae_datalogger/config/TopicsList.txt file
-            loadConfigFile(os.path.expanduser('~') + '/catkin_ws/src/edg_ur10/config/TopicsList.txt')
-            print(("Listening for these topics: "+str(listOfTopics)))
+            # The config file must list topics we want to log
+            path = os.path.dirname(__file__)
+            parent = os.path.dirname(path)
+            config_path = os.path.join(parent, "config", "TopicsList.txt")
+
+            loadConfigFile(config_path)
+            rospy.loginfo("Listening for these topics: %s", str(listOfTopics))
 
             currentTimeStr = datetime.now().strftime('%Y_%m%d_%H%M%S')
-
             all_output_file_names = ""
+
             for topicName in listOfTopics:
-                #Generate a new for the output CSV file for each topic
-                output_file_name[topicName] = '/tmp/dataLog_' +currentTimeStr+ '_' + topicName[1:] + '.csv'    
-                # output_file_name = '/tmp/data_log_'+str(int(time.time()))+'.csv'
-                #Open the CSV file for writing
-                output_file[topicName] = open(output_file_name[topicName],'w')
-                print(("Writing output to: "+output_file_name[topicName]))
+                # Replace '/' with '_' in filenames
+                safe_topic_name = topicName.replace("/", "_")
+                output_file_name[topicName] = '/tmp/dataLog_{}_{}.csv'.format(
+                    currentTimeStr,
+                    safe_topic_name
+                )
+                # Open for writing
+                output_file[topicName] = open(output_file_name[topicName], 'w')
+                rospy.loginfo("Writing output for %s to: %s", topicName, output_file_name[topicName])
                 all_output_file_names += output_file_name[topicName] + " "
+
             logJustStarted = 1
-            
-            
-        print("Data logging is started.")
+            rospy.loginfo("Data logging is started.")
+        else:
+            rospy.loginfo("Data logging was already enabled.")
+        isLoggingEnabled = True
+        return EnableResponse(all_output_file_names)
 
-    #Disable logging
-    if desiredState == False:
-        #If its not already in that state
+    # Disable logging
+    else:
         if isLoggingEnabled != desiredState:
-            for topicName in listOfTopics:
-                output_file[topicName].close()
-
+            # 1) Unsubscribe so we no longer receive new callbacks
             unsubscribeAllTopics()
+
+            # 2) Close all open files
+            for topicName, fobj in output_file.items():
+                if not fobj.closed:
+                    fobj.close()
+
             all_output_file_names = ""
             record = {}
             logJustStarted = 0
-        print("Data logging is stopped.")
+            rospy.loginfo("Data logging is stopped.")
+        else:
+            rospy.loginfo("Data logging was already disabled.")
 
-    isLoggingEnabled = desiredState
-
-    #This is what gets returned to the user
-    return EnableResponse(all_output_file_names)
+        isLoggingEnabled = False
+        return EnableResponse(all_output_file_names)
 
 
 if __name__ == '__main__':
-
-    # For Debugging
-    import subprocess
-    # subprocess.Popen("roscore")
-    
     print("DataLogger Started")
-    
 
-    #Retrieve the graph of nodes
+    rospy.init_node("suction_log_node", anonymous=True)
+
+    # Retrieve the graph of nodes
     master = rosgraph.Master(rospy.get_name())
-
-    #Get a list of all topics and their associated message type
+    # Get a list of all topics and their associated message type
     topic_types = master.getTopicTypes()
-    
-    rospy.init_node("edg_log_node", anonymous=True)
-    
-    
-    #Advertise our service
+
+    # Advertise the data_logging service
     service = rospy.Service('data_logging', Enable, setLoggingState)
-    
-    # For Debugging    
-    # subprocess.call(["rosservice", "call", "/data_logging", "1"]) #enable
-    
-    # subprocess.call(["rosrun", "netft_utils", "netft_utils_sim"])
-    
-    
+
     rospy.spin()
-    
