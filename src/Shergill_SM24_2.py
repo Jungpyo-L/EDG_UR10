@@ -321,11 +321,6 @@ def main(args):
     # Dealing with the horizontal motion in the local frame after rotation
     # tvec_horiz_world = np.array([-0.01, 0, 0]) # move in the negative x direction in the world frame
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) # translation VECTOR for horizontal motion
-
-    # Preparing for the next horizontal segment
-    currentPose = rtde_help.getCurrentPose()
-    current_x = currentPose.pose.position.x
-
     T_move = np.eye(4) # initialize the move vector outside loop
     Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) # world vertical axis is given by this, useful for projection in loop
 
@@ -333,12 +328,11 @@ def main(args):
     rospy.sleep(1.5)
     FT_help.setNowAsBias() # zero gravity and other forces
     args.ForceOffset2 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz]
-    
     syncPub.publish(6)
-  # prevFx = FT_help.averageFx_noOffset
-  # prevFy = FT_help.averageFy_noOffset
-  # prevFz = FT_help.averageFz_noOffset
 
+   # Preparing for the next horizontal segment
+    currentPose = rtde_help.getCurrentPose()
+    current_x = currentPose.pose.position.x
     while currentPose.pose.position.x <= current_x + 0.04:
       # Horizontal motion defined in a TRANSLATION VECTOR previously outside of this loop
       # Dealing with the vertical motion in the local frame after rotation
@@ -353,9 +347,9 @@ def main(args):
       # Define transformation vector 
       T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
       t_vertical_local = T_normal[:3, 3]
-      # Transform to World Coordinates
-      t_vertical_world = R_relative @ t_vertical_local
-      # Project Motion Back to Local Vertical Axis Thereby "Correcting" It
+      # # Transform to World Coordinates
+      # t_vertical_world = R_relative @ t_vertical_local
+      # Align Motion With Local Vertical Axis Thereby "Correcting" It
       magnitude = np.dot(t_vertical_local, Vertical_Axis_Local) # projection of the motion vector onto the vertical axis (defined outside while loop)
       t_vertical_local = magnitude*Vertical_Axis_Local
 
