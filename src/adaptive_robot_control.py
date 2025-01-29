@@ -43,14 +43,15 @@ def main(args):
   # Setup helper functions
   FT_help = FT_CallbackHelp() # it deals with subscription.
   rospy.sleep(0.5)
-  rtde_help = rtdeHelp(125, speed=0.1 , acc= 0.1)
+  rtde_help = rtdeHelp(125)
   rospy.sleep(0.5)
   file_help = fileSaveHelp()
   adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= 5e-3)
 
   # Set the TCP offset and calibration matrix (ex, suction cup: 0.150, ATI_default: 0.464)
   # You can set the TCP offset here, but it is recommended to set it in the UR program.
-  # If you set it here, endEffectorPose will be different from the actual pose.
+  # If you set it here, endEffect
+  # orPose will be different from the actual pose.
   # rtde_help.setTCPoffset([0, 0, 0.464, 0, 0, 0])
   # rospy.sleep(0.2)
 
@@ -96,8 +97,10 @@ def main(args):
       # Get the next pose
       # lateral
       T_lat = adpt_help.get_Tmat_TranlateInY(direction = -1)
+      T_lat = np.eye(4)
       # rotation
       T_rot = np.eye(4)
+      T_rot = adpt_help.get_Tmat_RotateInX(direction = 1)
       # normal
       F_normal = FT_help.averageFz_noOffset
       T_normal = adpt_help.get_Tmat_axialMove(F_normal, args.normalForce)
@@ -106,7 +109,7 @@ def main(args):
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currPose)
 
       # Move to the next pose
-      rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+      rtde_help.goToPoseAdaptive(targetPose, time = 2)
 
 
     print("============ Python UR_Interface demo complete!")

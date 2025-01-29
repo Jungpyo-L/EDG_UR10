@@ -85,6 +85,7 @@ def appendDataPoint(topic, msg):
     # Remove trailing comma, add newline
     line = line[:-1] + "\n"
 
+
     # Write it out
     output_file[topic].write(line)
 
@@ -318,6 +319,7 @@ if __name__ == '__main__':
     print("DataLogger Started")
 
     rospy.init_node("edg_log_node", anonymous=True)
+
 
     # Retrieve the graph of nodes
     master = rosgraph.Master(rospy.get_name())
