@@ -16,9 +16,9 @@ class FT_CallbackHelp(object):
         self.averageFx = 0.0
         self.averageFy = 0.0
         self.averageFz = 0.0
-        self.averageFx = 0.0
-        self.averageFy = 0.0
-        self.averageFz = 0.0
+        self.averageTx = 0.0
+        self.averageTy = 0.0
+        self.averageTz = 0.0
 
         self.offSetFx = 0.0
         self.offSetFy = 0.0

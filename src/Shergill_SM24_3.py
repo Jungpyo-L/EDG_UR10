@@ -96,7 +96,7 @@ def main(args):
   # Pose B has to be defined relative to A so it is defined during the motion sequence
 
   # We descend into media. No rotation. 
-  PositionC = [0.320, -0.200, 0.12]
+  PositionC = [0.320, -0.200, 0.1]
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
   ##################################################
@@ -135,6 +135,7 @@ def main(args):
 
     # Initializing variables to retain global frame
     # THese are the variables I don't remember if I use
+    currentPose = rtde_help.getCurrentPose()
     T_start = adpt_help.get_Tmat_from_Pose(currentPose)
     R_start = T_start[:3, :3]
     
@@ -150,19 +151,19 @@ def main(args):
   #                  # HORIZ 1 #                   #
   #                  # edit line 156               #
   ##################################################
-    syncPub.publish(1)
     currentPose = rtde_help.getCurrentPose()
     current_x = currentPose.pose.position.x
+    syncPub.publish(1)
     while currentPose.pose.position.x <= current_x + 0.05:
       currentPose = rtde_help.getCurrentPose()
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_horiz_world, currentPose)
       rtde_help.goToPoseAdaptive(targetPose, time=0.05)
+    syncPub.publish(2)
   ##################################################
   #                   # ROT 1 #                    #
   #                   # edit lines 166, 184        #
   ##################################################
     adpt_help.dw = 0.01
-    syncPub.publish(2)
     while overall_angle <= 12.5:
         T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # Positive Y-direction  
         currentPose = rtde_help.getCurrentPose()
@@ -195,24 +196,23 @@ def main(args):
     t_horiz_local = R_relative.T @ tvec_horiz_world # translation VECTOR for horizontal motion
     T_horiz_rotated[:3,3] = t_horiz_local
 
-    syncPub.publish(3) # giving a gap between rotation and next motion to lessen oscillations
+    # giving a gap between rotation and next motion to lessen oscillations
     rospy.sleep(1.5)
    # FT_help.setNowAsBias()
     args.ForceOffset2 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz] 
-    syncPub.publish(4)
 
     currentPose = rtde_help.getCurrentPose()
     current_x = currentPose.pose.position.x
+    syncPub.publish(3) 
     while currentPose.pose.position.x <= current_x + 0.05:
       currentPose = rtde_help.getCurrentPose()
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_horiz_rotated, currentPose)
       rtde_help.goToPoseAdaptive(targetPose, time=0.05)
-
+    syncPub.publish(4)
   ##################################################
   #                  # ROTATION 2 #                #
   #                   # edit lines 216, 235        #
   ##################################################
-    syncPub.publish(5)
     while overall_angle >= -12.5: # negative rotation
         adpt_help.dw = 0.01
         T_rot_step = adpt_help.get_Tmat_RotateInY(direction=-1) # Positive Y-direction  
@@ -232,9 +232,9 @@ def main(args):
             overall_angle = -overall_angle
 
         # Condition to break the loop
-        if overall_angle <= -12.5:
-            rtde_help.stopAtCurrPoseAdaptive()
-            break
+        # if overall_angle <= -12.5:
+        #     rtde_help.stopAtCurrPoseAdaptive()
+        #     break
 
   ##################################################
   #                  # HORIZ 3 #                   #
@@ -246,23 +246,23 @@ def main(args):
     t_horiz_local = R_relative.T @ tvec_horiz_world # translation VECTOR for horizontal motion
     T_horiz_rotated[:3,3] = t_horiz_local
 
-    syncPub.publish(6) # giving a gap between rotation and next motion to lessen oscillations
+   # giving a gap between rotation and next motion to lessen oscillations
     rospy.sleep(1.5)
    # FT_help.setNowAsBias()
     args.ForceOffset2 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz] 
-    syncPub.publish(7)
 
     currentPose = rtde_help.getCurrentPose()
     current_x = currentPose.pose.position.x
+    syncPub.publish(5)
     while currentPose.pose.position.x <= current_x + 0.05:
       currentPose = rtde_help.getCurrentPose()
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_horiz_rotated, currentPose)
       rtde_help.goToPoseAdaptive(targetPose, time=0.05)
+    syncPub.publish(6)
    ##################################################
    #                 # ROTATION 3 #                 #
    #                 # edit lines 265, 267 284      #
   ################################################### 
-    syncPub.publish(8)
     while overall_angle <= 0: # positive rotation
         adpt_help.dw = 0.01
         T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # Positive Y-direction  
@@ -282,9 +282,9 @@ def main(args):
             overall_angle = -overall_angle
 
         # Condition to break the loop
-        if overall_angle >= 0:
-            rtde_help.stopAtCurrPoseAdaptive()
-            break
+        # if overall_angle >= 0:
+        #     rtde_help.stopAtCurrPoseAdaptive()
+        #     break
   ##################################################
   #                  # HORIZ 4 #                   #
   #                   # edit lines 304             #
@@ -295,23 +295,23 @@ def main(args):
     t_horiz_local = R_relative.T @ tvec_horiz_world # translation VECTOR for horizontal motion
     T_horiz_rotated[:3,3] = t_horiz_local
 
-    syncPub.publish(9) # giving a gap between rotation and next motion to lessen oscillations
+    # giving a gap between rotation and next motion to lessen oscillations
     rospy.sleep(1.5)
     # FT_help.setNowAsBias()
     args.ForceOffset2 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz] 
-    syncPub.publish(10)
 
     currentPose = rtde_help.getCurrentPose()
     current_x = currentPose.pose.position.x
+    syncPub.publish(7)
     while currentPose.pose.position.x <= current_x + 0.05:
       currentPose = rtde_help.getCurrentPose()
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_horiz_rotated, currentPose)
       rtde_help.goToPoseAdaptive(targetPose, time=0.05)
+    syncPub.publish(8)
   ##################################################
   #                 # ROTATION 4 #                 #
   #                # edit lines 265, 284           #
   ################################################## 
-    syncPub.publish(11)
     while overall_angle <= 20: # negative rotation
         adpt_help.dw = 0.01
         T_rot_step = adpt_help.get_Tmat_RotateInY(direction= 1) # Positive Y-direction  
@@ -330,10 +330,10 @@ def main(args):
         if T_overall[2, 0] > 0:  # Check direction of rotation based on off-diagonal terms
             overall_angle = -overall_angle
 
-        # Condition to break the loop
-        if overall_angle >= 20:
-            rtde_help.stopAtCurrPoseAdaptive()
-            break
+        # # Condition to break the loop
+        # if overall_angle >= 20:
+        #     rtde_help.stopAtCurrPoseAdaptive()
+        #     break
   ##################################################
   #                  # HORIZ 5 #                   #
   #                   # edit lines 351             #
@@ -344,18 +344,19 @@ def main(args):
     t_horiz_local = R_relative.T @ tvec_horiz_world # translation VECTOR for horizontal motion
     T_horiz_rotated[:3,3] = t_horiz_local
 
-    syncPub.publish(12) # giving a gap between rotation and next motion to lessen oscillations
+    # giving a gap between rotation and next motion to lessen oscillations
     rospy.sleep(1.5)
     # FT_help.setNowAsBias()
     args.ForceOffset2 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz] 
-    syncPub.publish(13)
 
     currentPose = rtde_help.getCurrentPose()
     current_x = currentPose.pose.position.x
+    syncPub.publish(9)
     while currentPose.pose.position.x <= current_x + 0.05:
       currentPose = rtde_help.getCurrentPose()
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_horiz_rotated, currentPose)
       rtde_help.goToPoseAdaptive(targetPose, time=0.05)
+    syncPub.publish(10)
     ################ CONCLUDING MOTION #####################################      
     dataLoggerEnable(False)
     # save data and clear the temporary folder
