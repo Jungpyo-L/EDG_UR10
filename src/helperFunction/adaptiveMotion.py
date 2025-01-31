@@ -94,3 +94,10 @@ class adaptMotionHelp(object):
         else:
             T_normalMove = np.eye(4)
         return T_normalMove
+
+    def get_Tmat_axialMove_GMTest(self, F_normal, F_normalThres):
+        if F_normal < -F_normalThres:
+            T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
+        elif F_normal > F_normalThres:
+            T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
+        else: T_normalMove = np.eye(4)
