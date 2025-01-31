@@ -262,9 +262,9 @@ def main(args):
       #   overall_angle = -overall_angle
 
       # Condition to break the loop
-      if overall_angle >= 12.5:
-        rtde_help.stopAtCurrPoseAdaptive()
-        break
+      # if overall_angle >= 12.5:
+      #   rtde_help.stopAtCurrPoseAdaptive()
+      #   break
 
    ###################################################
 
