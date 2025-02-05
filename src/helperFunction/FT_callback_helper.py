@@ -5,7 +5,14 @@ from geometry_msgs.msg import WrenchStamped
 
 class FT_CallbackHelp(object):
     def __init__(self):
+        
+        # Subscriber to the raw sensor data
         rospy.Subscriber("netft_data", WrenchStamped, self.callback_FT)
+
+        # Publisher for the offset (bias-subtracted) data
+        self.pub_offsetted = rospy.Publisher("netft_data_offset", 
+                                             WrenchStamped, 
+                                             queue_size=10)
         
         ## For Force feedback
         self.BufferSize = 7
@@ -29,18 +36,19 @@ class FT_CallbackHelp(object):
 
 
         self.thisForce = []
-        self.thisFT = []
 
 
     def callback_FT(self, data):
+
+        """
+        Callback to process the incoming WrenchStamped from netft_data.
+        We store them in a circular buffer of length BufferSize,
+        compute an average, and publish with offset subtracted.
+        """
                 
-        thisForce = data.wrench.force
-        thisFT = data.wrench
-        # self.averagingBuffer[self.inputIndex] = thisForce
-        self.averagingBuffer[self.inputIndex] = thisFT
-        
-        # self.thisForce = thisForce
-        self.thisForce = thisFT
+        # Store the newest WrenchStamped in the buffer
+        self.averagingBuffer[self.inputIndex] = data.wrench
+        self.thisForce = data.wrench
         self.inputIndex += 1
         
         if self.inputIndex == len(self.averagingBuffer):
@@ -77,8 +85,27 @@ class FT_CallbackHelp(object):
             self.averageTx_noOffset = self.averageTx-self.offSetTx
             self.averageTy_noOffset = self.averageTy-self.offSetTy
             self.averageTz_noOffset = self.averageTz-self.offSetTz
+
+            # Now publish the offset WrenchStamped
+            offset_wrench_msg = WrenchStamped()
+            offset_wrench_msg.header.stamp = rospy.Time.now()
+            offset_wrench_msg.header.frame_id = data.header.frame_id
+
+            offset_wrench_msg.wrench.force.x = self.averageFx_noOffset
+            offset_wrench_msg.wrench.force.y = self.averageFy_noOffset
+            offset_wrench_msg.wrench.force.z = self.averageFz_noOffset
+            offset_wrench_msg.wrench.torque.x = self.averageTx_noOffset
+            offset_wrench_msg.wrench.torque.y = self.averageTy_noOffset
+            offset_wrench_msg.wrench.torque.z = self.averageTz_noOffset
+
+            self.pub_offsetted.publish(offset_wrench_msg)
     
     def setNowAsBias(self):
+        """
+        Call this to treat the current average as bias.
+        E.g. you might call this via a ROS service or 
+        a keypress in a separate script.
+        """
         self.offSetFx = self.averageFx
         self.offSetFy = self.averageFy
         self.offSetFz = self.averageFz
@@ -87,5 +114,9 @@ class FT_CallbackHelp(object):
         self.offSetTz = self.averageTz
     
     # def averageFT_noOffset(self):
+if __name__ == "__main__":
+    rospy.init_node("offset_ft_publisher")
+    ft_callback_helper = FT_CallbackHelp()
+    rospy.spin()
 
                   
