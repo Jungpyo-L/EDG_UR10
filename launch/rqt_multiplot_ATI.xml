@@ -670,7 +670,7 @@
                         <visible>true</visible>
                     </legend>
                     <plot_rate>30</plot_rate>
-                    <title>Forces and Torques Zeroed</title>
+                    <title>Zeroed Forces and Torques</title>
                 </column_0>
             </row_1>
 

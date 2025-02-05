@@ -88,15 +88,19 @@ class adaptMotionHelp(object):
         if F_normal < -F_normalThres:
             # move upward
             T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
+            T_normalMove[:3,3] = T_normalMove[:3,3]*(F_normal-F_normalThres)*0.05
+            print('T_normal vector:', T_normalMove[:3,3])
         elif F_normal > F_normalThres:
             # move downward
             T_normalMove = self.get_Tmat_TranlateInZ(direction = 1)
+            T_normalMove[:3,3] = T_normalMove[:3,3]*(F_normal-F_normalThres)*0.05
+            print('T_normal vector:', T_normalMove[:3,3])
         else:
             T_normalMove = np.eye(4)
         return T_normalMove
-   def get_Tmat_axialMove_GMTest(self, F_normal, F_normalThres):
-        if F_normal < -F_normalThres:
-            T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
-        elif F_normal > F_normalThres:
-            T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
-        else: T_normalMove = np.eye(4)
+    # def get_Tmat_axialMove_GMTest(self, F_normal, F_normalThres):
+    #     if F_normal < -F_normalThres:
+    #         T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
+    #     elif F_normal > F_normalThres:
+    #         T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
+    #     else: T_normalMove = np.eye(4)
