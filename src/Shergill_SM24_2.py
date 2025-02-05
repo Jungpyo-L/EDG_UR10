@@ -194,6 +194,7 @@ def main(args):
 
     startTime = time.time() 
     currentPose = rtde_help.getCurrentPose()
+    # PRINT X VALUE HERE ############
     T_start = adpt_help.get_Tmat_from_Pose(currentPose) # world frame
     R_start = T_start[:3, :3]  # Rotation matrix of the world frame
     T_horiz_world = adpt_help.get_Tmat_TranlateInX(direction = -1) # move in the negative x direction
@@ -207,6 +208,7 @@ def main(args):
    
     currentPose = rtde_help.getCurrentPose()
     current_x = currentPose.pose.position.x
+    # ADD PRINT X HERE
     syncPub.publish(1)
     print("Horiz 1")
     while currentPose.pose.position.x <= current_x + 0.05:
@@ -219,7 +221,9 @@ def main(args):
 
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
       rtde_help.goToPoseAdaptive(targetPose, time = 0.05)
+      # ADD THE CHECK IF POSE REACHED
       currentPose = rtde_help.getCurrentPose()
+      # PRINT X HERE AGAIN 
     syncPub.publish(2)
     #####################################
       # Check if the motion is significant to avoid unnecessary motion
@@ -237,16 +241,15 @@ def main(args):
 
       # print("current z after lateral motion: ", currentPose.pose.position.z)
 
-    currentPose = rtde_help.getCurrentPose()
-    print("current-x after lateral motion: ", currentPose.pose.position.x)
-    print("Rotation 1") 
   ##################################################
   #                  ROTATION 1                    #
   ##################################################
+    currentPose = rtde_help.getCurrentPose()
+    print("current-x after lateral motion: ", currentPose.pose.position.x)
+    print("Rotation 1") 
     adpt_help.dw = 0.01
     while overall_angle <= 12.5: # positive rotation
-      T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # Positive Y-direction  
-      currentPose = rtde_help.getCurrentPose()
+      T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # Positive Y-direction 
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
       rtde_help.goToPoseAdaptive(targetPose, time=0.05)
       
@@ -257,10 +260,14 @@ def main(args):
       # Angle relative to the start
       overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi # may want to use a different angle
 
+      currentPose = rtde_help.getCurrentPose()
+
+      #############################################
       # Not needed here since we know the direction of rotation and want a final positive angle, will be useful in the future
       # if T_overall[2, 0] > 0:  # Check direction of rotation based on off-diagonal terms
       #   overall_angle = -overall_angle
 
+<<<<<<< HEAD
       # Condition to break the loop
       # if overall_angle >= 12.5:
       #   rtde_help.stopAtCurrPoseAdaptive()
@@ -268,13 +275,19 @@ def main(args):
 
    ###################################################
 
+=======
+      # # Condition to break the loop
+      # if overall_angle >= 12.5:
+      #   rtde_help.stopAtCurrPoseAdaptive()
+      #   break
+>>>>>>> 8f6c7b519f73ccbb423f9f7f792440ef0b782766
   #  #######################################################################################
   #  #  ADAPTIVE HORIZONTAL MOTION AFTER ROTATION 1  --> WORLD FRAME MOTION IN LOCAL FRAME #
   #  # #######################################################################################
 
     print("Adaptive motion after rotation 1")
+    # PRINT OVERALL ANGLE
     R_relative = T_overall[:3,:3] 
-    # Dealing with the horizontal motion in the local frame after rotation
     # tvec_horiz_world = np.array([-0.01, 0, 0]) # move in the negative x direction in the world frame
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) # translation VECTOR for horizontal motion
     T_move = np.eye(4) # initialize the move vector outside loop
@@ -317,13 +330,14 @@ def main(args):
       rtde_help.goToPoseAdaptive(targetPose, time=0.05)
 
       currentPose = rtde_help.getCurrentPose()
-    syncPub.publish(4) 
-    currentPose = rtde_help.getCurrentPose()   
-    print("current z after rotation 1: ", currentPose.pose.position.z)      
-    rospy.sleep(1.5)          
+              
     # ##################################################
     # #                  ROTATION 2                    #
     # ##################################################
+    syncPub.publish(4) 
+    currentPose = rtde_help.getCurrentPose()   
+    print("current z after rotation 1: ", currentPose.pose.position.z)      
+    # rospy.sleep(1.5)  
     # while overall_angle >= -12.5: # negative rotation
     #   adpt_help.dw = 0.01
     #   T_rot_step = adpt_help.get_Tmat_RotateInY(direction=-1) # Positive Y-direction  
