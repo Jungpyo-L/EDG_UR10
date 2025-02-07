@@ -88,12 +88,12 @@ class adaptMotionHelp(object):
         if F_normal < -F_normalThres:
             # move upward
             T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
-            T_normalMove[:3,3] = T_normalMove[:3,3]*(F_normal-F_normalThres)*0.05
+            T_normalMove[:3,3] = T_normalMove[:3,3]*(F_normal-F_normalThres)*0.07 # can d0 0.1 in a deeper tank 
             print('T_normal vector:', T_normalMove[:3,3])
         elif F_normal > F_normalThres:
             # move downward
             T_normalMove = self.get_Tmat_TranlateInZ(direction = 1)
-            T_normalMove[:3,3] = T_normalMove[:3,3]*(F_normal-F_normalThres)*0.05
+            T_normalMove[:3,3] = T_normalMove[:3,3]*(F_normal-F_normalThres)*0.07
             print('T_normal vector:', T_normalMove[:3,3])
         else:
             T_normalMove = np.eye(4)

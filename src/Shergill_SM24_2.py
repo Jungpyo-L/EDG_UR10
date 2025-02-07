@@ -210,8 +210,8 @@ def main(args):
     current_x = currentPose.pose.position.x
     # print("current-x before lateral motion: ", currentPose.pose.position.x)
     syncPub.publish(1)
-    while currentPose.pose.position.x < current_x + 0.02:
-      if currentPose.pose.position.x >= current_x + 0.02:
+    while currentPose.pose.position.x < current_x + 0.01:
+      if currentPose.pose.position.x >= current_x + 0.01: # test this in the horizontal code
         rtde_help.stopAtCurrPoseAdaptive()
         break
       # Vertical adaptive motion 
@@ -222,14 +222,22 @@ def main(args):
       T_move = T_horiz_world @ T_normal
 
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
+      print('-------------------------------------------------')
+      currentPose = rtde_help.getCurrentPose()
+      print('z before gotoPoseAdaptive: ', currentPose.pose.position.z)
       print('target-z: ', targetPose.pose.position.z)
       rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
       currentPose = rtde_help.getCurrentPose()
-      # while currentPose.pose.position.z != targetPose.pose.position.z:
-      #   rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
-      #   currentPose = rtde_help.getCurrentPose()
-      #   print("In the loop-z:", currentPose.pose.position.z)
-      print("current-z:", currentPose.pose.position.z) 
+      print('current-z before tolerance loop: ', currentPose.pose.position.z)
+      tolerance = 0.00001 # I'll adjust this if I start moving into cm territory
+      print('difference: ', abs(currentPose.pose.position.z - targetPose.pose.position.z))
+      while abs(currentPose.pose.position.z - targetPose.pose.position.z) >= tolerance:
+        rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
+        currentPose = rtde_help.getCurrentPose()
+        print("In the loop-z:", currentPose.pose.position.z) 
+        # I think this loop is working but will use 0.1 adjustment in the adaptive function
+        # when testing in big tank 
+      print("z after while loop",currentPose.pose.position.z)  
     
 
     syncPub.publish(2)
@@ -252,91 +260,91 @@ def main(args):
   ##################################################
   #                  ROTATION 1                    #
   ##################################################
-    currentPose = rtde_help.getCurrentPose()
-    print("current-x after lateral motion: ", currentPose.pose.position.x)
-    print("Rotation 1") 
-    adpt_help.dw = 0.01
-    while overall_angle <= 12.5: # positive rotation
-      if overall_angle >= 12.5:
-        rtde_help.stopAtCurrPoseAdaptive()
-        break
-      T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # Positive Y-direction 
-      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
-      rtde_help.goToPoseAdaptive(targetPose, time=0.05)
+    # currentPose = rtde_help.getCurrentPose()
+    # print("current-x after lateral motion: ", currentPose.pose.position.x)
+    # print("Rotation 1") 
+    # adpt_help.dw = 0.01
+    # while overall_angle <= 12.5: # positive rotation
+    #   if overall_angle >= 12.5:
+    #     rtde_help.stopAtCurrPoseAdaptive()
+    #     break
+    #   T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # Positive Y-direction 
+    #   targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
+    #   rtde_help.goToPoseAdaptive(targetPose, time=0.05)
       
-      # Updating the overall angle
-      currentPose = rtde_help.getCurrentPose()
-      T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
-      T_overall = np.linalg.inv(T_start) @ T_curr # local frame to the world frame
-      # Angle relative to the start
-      overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi # may want to use a different angle
-      print("Overall angle: ", overall_angle)
-      currentPose = rtde_help.getCurrentPose()
+    #   # Updating the overall angle
+    #   currentPose = rtde_help.getCurrentPose()
+    #   T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
+    #   T_overall = np.linalg.inv(T_start) @ T_curr # local frame to the world frame
+    #   # Angle relative to the start
+    #   overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi # may want to use a different angle
+    #   print("Overall angle: ", overall_angle)
+    #   currentPose = rtde_help.getCurrentPose()
 
 
-  #     #############################################
-  #     # Not needed here since we know the direction of rotation and want a final positive angle, will be useful in the future
-  #     # if T_overall[2, 0] > 0:  # Check direction of rotation based on off-diagonal terms
-  #     #   overall_angle = -overall_angle
+  # #     #############################################
+  # #     # Not needed here since we know the direction of rotation and want a final positive angle, will be useful in the future
+  # #     # if T_overall[2, 0] > 0:  # Check direction of rotation based on off-diagonal terms
+  # #     #   overall_angle = -overall_angle
 
-  #     # # Condition to break the loop
-  #     # if overall_angle >= 12.5:
-  #     #   rtde_help.stopAtCurrPoseAdaptive()
-  #     #   break
-  # #  #######################################################################################
-  # #  #  ADAPTIVE HORIZONTAL MOTION AFTER ROTATION 1  --> WORLD FRAME MOTION IN LOCAL FRAME #
-  # #  # #######################################################################################
+  # #     # # Condition to break the loop
+  # #     # if overall_angle >= 12.5:
+  # #     #   rtde_help.stopAtCurrPoseAdaptive()
+  # #     #   break
+  # # #  #######################################################################################
+  # # #  #  ADAPTIVE HORIZONTAL MOTION AFTER ROTATION 1  --> WORLD FRAME MOTION IN LOCAL FRAME #
+  # # #  # #######################################################################################
 
-    print("Adaptive motion after rotation 1")
-    # PRINT OVERALL ANGLE
-    R_relative = T_overall[:3,:3] 
-    # tvec_horiz_world = np.array([-0.01, 0, 0]) # move in the negative x direction in the world frame
-    t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) # translation VECTOR for horizontal motion
-    T_move = np.eye(4) # initialize the move vector outside loop
-    Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) # world vertical axis is given by this, useful for projection in loop
+  #   print("Adaptive motion after rotation 1")
+  #   # PRINT OVERALL ANGLE
+  #   R_relative = T_overall[:3,:3] 
+  #   # tvec_horiz_world = np.array([-0.01, 0, 0]) # move in the negative x direction in the world frame
+  #   t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) # translation VECTOR for horizontal motion
+  #   T_move = np.eye(4) # initialize the move vector outside loop
+  #   Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) # world vertical axis is given by this, useful for projection in loop
 
-    rospy.sleep(1.5)
-    FT_help.setNowAsBias() # zero gravity and other forces
-    args.ForceOffset2 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz]
+  #   rospy.sleep(1.5)
+  #   FT_help.setNowAsBias() # zero gravity and other forces
+  #   args.ForceOffset2 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz]
 
-   # Preparing for the next horizontal segment
-    currentPose = rtde_help.getCurrentPose()
-    current_x = currentPose.pose.position.x
-    syncPub.publish(3)
-    while currentPose.pose.position.x <= current_x + 0.02:
-      # Horizontal motion defined in a TRANSLATION VECTOR previously outside of this loop
-      # Dealing with the vertical motion in the local frame after rotation
+  #  # Preparing for the next horizontal segment
+  #   currentPose = rtde_help.getCurrentPose()
+  #   current_x = currentPose.pose.position.x
+  #   syncPub.publish(3)
+  #   while currentPose.pose.position.x <= current_x + 0.02:
+  #     # Horizontal motion defined in a TRANSLATION VECTOR previously outside of this loop
+  #     # Dealing with the vertical motion in the local frame after rotation
 
-      # ISOLATING THE Z-COMPONENT OF THE FORCE VECTOR IN THE WORLD FRAME
-      F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
-      F_vertical_world = np.array([0,0, F_world[2]]) # z-component has now been isolated
-      # Transform from world back to local frame
-      F_vertical_local = R_relative.T @ F_vertical_world
+  #     # ISOLATING THE Z-COMPONENT OF THE FORCE VECTOR IN THE WORLD FRAME
+  #     F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
+  #     F_vertical_world = np.array([0,0, F_world[2]]) # z-component has now been isolated
+  #     # Transform from world back to local frame
+  #     F_vertical_local = R_relative.T @ F_vertical_world
       
-      # OBTAIN ADAPTIVE MOTION IN WORLD FRAME TRANSFORMED FOR MOTION IN LOCAL FRAME
-      # Define transformation vector 
-      T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
-      t_vertical_local = T_normal[:3, 3]
-      # Align Motion With Local Vertical Axis Thereby "Correcting" It
-      magnitude = np.dot(t_vertical_local, Vertical_Axis_Local) # projection of the motion vector onto the vertical axis (defined outside while loop)
-      t_vertical_local = magnitude*Vertical_Axis_Local
+  #     # OBTAIN ADAPTIVE MOTION IN WORLD FRAME TRANSFORMED FOR MOTION IN LOCAL FRAME
+  #     # Define transformation vector 
+  #     T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
+  #     t_vertical_local = T_normal[:3, 3]
+  #     # Align Motion With Local Vertical Axis Thereby "Correcting" It
+  #     magnitude = np.dot(t_vertical_local, Vertical_Axis_Local) # projection of the motion vector onto the vertical axis (defined outside while loop)
+  #     t_vertical_local = magnitude*Vertical_Axis_Local
 
-      # Combine the motions
-      t_move = t_vertical_local + t_horiz_local
-      T_move[:3,3] = t_move
+  #     # Combine the motions
+  #     t_move = t_vertical_local + t_horiz_local
+  #     T_move[:3,3] = t_move
     
-      # Get the target pose
-      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
-      # Check if the motion is significant to avoid unnecessary motion
-      # if significant_motion_check(currentPose, targetPose):
-      rtde_help.goToPoseAdaptive(targetPose, time=0.5)
+  #     # Get the target pose
+  #     targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
+  #     # Check if the motion is significant to avoid unnecessary motion
+  #     # if significant_motion_check(currentPose, targetPose):
+  #     rtde_help.goToPoseAdaptive(targetPose, time=0.5)
 
-      currentPose = rtde_help.getCurrentPose()
+  #     currentPose = rtde_help.getCurrentPose()
               
   #   # ##################################################
   #   # #                  ROTATION 2                    #
   #   # ##################################################
-  #   syncPub.publish(4) 
+    syncPub.publish(4) 
   #   currentPose = rtde_help.getCurrentPose()   
   #   print("current z after rotation 1: ", currentPose.pose.position.z)      
     # rospy.sleep(1.5)  
