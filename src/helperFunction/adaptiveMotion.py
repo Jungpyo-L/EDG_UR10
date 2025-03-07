@@ -82,29 +82,53 @@ class adaptMotionHelp(object):
         omega_hat = hat(rot_axis)
         Rw = scipy.linalg.expm(self.dw* omega_hat)
         return create_transform_matrix(Rw, [0,0,0])
-    
+
+
+
+
     def get_Tmat_axialMove(self, F_normal, F_normalThres):
-        
-        if F_normal < -F_normalThres:
-            # move upward
-            print("Using axial move upward")
-            T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
-            print('T_normal vector modified:', T_normalMove[:3,3])
-            T_normalMove[:3,3] = T_normalMove[:3,3]*abs(F_normal-F_normalThres)*0.07 # can d0 0.1 in a deeper tank 
-            print('T_normal vector:', T_normalMove[:3,3])
-        elif F_normal > F_normalThres:
-            # move downward
-            print("Using axial move downward")
+        # considering that down z is positive and up z is negative
+        F_corrected = -F_normal
+        #print("F_corrected:", F_corrected)
+        if F_corrected < -F_normalThres:
+            # moving downward
+            # print("GOING DOWN: F_normal:", F_normal, "F_corrected:", F_corrected, "F_normalThres:", F_normalThres)
             T_normalMove = self.get_Tmat_TranlateInZ(direction = 1)
-            print('T_normal vector unmodified:', T_normalMove[:3,3])
-            T_normalMove[:3,3] = T_normalMove[:3,3]*abs(F_normal-F_normalThres)*0.07
-            print('T_normal vector:', T_normalMove[:3,3])
+            T_normalMove[:3,3] = T_normalMove[:3,3]*abs(F_normal+F_normalThres)*0.03
+        elif F_corrected > F_normalThres:
+            # moving upward
+            # print("GOING UP: F_normal:", F_normal, "F_corrected:", F_corrected, "F_normalThres:", F_normalThres)
+            T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
+            T_normalMove[:3,3] = T_normalMove[:3,3]*abs(F_normal-F_normalThres)*0.03
         else:
             T_normalMove = np.eye(4)
         return T_normalMove
-    # def get_Tmat_axialMove_GMTest(self, F_normal, F_normalThres):
+    # def get_Tmat_axialMove(self, F_normal, F_normalThres):
+        
     #     if F_normal < -F_normalThres:
-    #         T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
+    #         T_normalMove = self.get_Tmat_TranlateInZ(direction = 1)
+    #         T_normalMove[:3,3] = T_normalMove[:3,3]*abs(F_normal-F_normalThres)*0.01
+    #         # move upward
+    #         print("F_normal:", F_normal, "F_normalThres:", F_normalThres)
+    #         #T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
+    #         #print('T_normal vector modified:', T_normalMove[:3,3])
+    #         # T_normalMove[:3,3] = T_normalMove[:3,3]*abs(F_normal-F_normalThres)*0.07 # can d0 0.1 in a deeper tank 
+    #         #print('T_normal vector:', T_normalMove[:3,3])
     #     elif F_normal > F_normalThres:
     #         T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
-    #     else: T_normalMove = np.eye(4)
+    #         T_normalMove[:3,3] = T_normalMove[:3,3]*abs(F_normal-F_normalThres)*0.01
+    #         # move downward
+    #         print("F_normal:", F_normal, "F_normalThres:", F_normalThres)
+    #         # T_normalMove = self.get_Tmat_TranlateInZ(direction = 1)
+    #         # #print('T_normal vector unmodified:', T_normalMove[:3,3])
+    #         # T_normalMove[:3,3] = T_normalMove[:3,3]*abs(F_normal-F_normalThres)*0.07
+    #         #print('T_normal vector:', T_normalMove[:3,3])
+    #     else:
+    #         T_normalMove = np.eye(4)
+    #     return T_normalMove
+    # # def get_Tmat_axialMove_GMTest(self, F_normal, F_normalThres):
+    # #     if F_normal < -F_normalThres:
+    # #         T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
+    # #     elif F_normal > F_normalThres:
+    # #         T_normalMove = self.get_Tmat_TranlateInZ(direction = -1)
+    # #     else: T_normalMove = np.eye(4)
