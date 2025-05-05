@@ -166,7 +166,7 @@ def main(args):
   PoseA = rtde_help.getPoseObj(PositionA, OrientationA)
 
   # We descend into media. No rotation. 
-  PositionC = [0.200, -0.200, 0.280] # 
+  PositionC = [0.200, -0.230, 0.270] # 
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
   #############################################################################################################################
@@ -182,7 +182,7 @@ def main(args):
     # POSE B
     input("Press <Enter> to go to PoseB")
     currentPose = rtde_help.getCurrentPose()
-    PositionB = [0.230, -0.200, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
+    PositionB = [0.200, -0.230, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
     OrientationB = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi,'sxyz') #static (s) rotating (r)
     #   Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
     PoseB = rtde_help.getPoseObj(PositionB, OrientationB)
@@ -217,53 +217,115 @@ def main(args):
 
     currentPose = rtde_help.getCurrentPose()
     T_start = adpt_help.get_Tmat_from_Pose(currentPose) # world frame
-    R_start = T_start[:3, :3]  # Rotation matrix of the world frame
+    R_original = T_start[:3, :3]  # Rotation matrix of the world frame
     T_horiz_world = adpt_help.get_Tmat_TranlateInX(direction = -1) # move in the negative x direction
     T_vertical_world = adpt_help.get_Tmat_TranlateInZ(direction = 1) # move in the positive z direction
-    print("T_horiz_world: ", T_horiz_world, "T_vertical_world: ", T_vertical_world)
+    #print("T_horiz_world: ", T_horiz_world, "T_vertical_world: ", T_vertical_world)
     T_move = np.eye(4) # initialize the move vector outside loop
     overall_angle = 0 # Initialize cumulative rotation angle 
-    print("R_original HORIZ 1: ", R_start) 
-
+    args.RotationMatrices = [] # in list format
+    print("R_original HORIZ 1: ") 
+    formatted_rows = [" , ".join(f"{val:.6f}" for val in row) for row in R_original] # Print in MATLAB-like format 
+    formatted_rows = ' ; '.join(formatted_rows)
+    print(formatted_rows) 
+    args.RotationMatrices.append(formatted_rows)
+    args.RotationAngles = [5, -5, -12.5, 20, -20, -12.5, 0]  # EDIT MEEEE
 ################ START MOTION #####################################
     ##################################################
     # ADAPTIVE MOTION: ZERO WHILE LATERAL MOVEMENT HAPPENS #
     ##################################################   
+##################### IF ROTATION HAPPENS FIRST ############################
+    while overall_angle < 5: # negative rotation
+        adpt_help.dw = 0.01
+        T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # EDIT LINE: (-) Y-direction  
+        currentPose = rtde_help.getCurrentPose()
+        targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
+        rtde_help.goToPoseAdaptive(targetPose, time=0.05)
+        
+        currentPose = rtde_help.getCurrentPose()
+        T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
+        T_overall = np.linalg.inv(T_start) @ T_curr 
+        overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
+        if T_overall[2, 0] > 0:  
+            overall_angle = -overall_angle
+
+    R_relative = T_overall[:3,:3] 
+    T_move = np.eye(4) 
+    t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
+    Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
+    formatted_rows = [" , ".join(f"{val:.6f}" for val in row) for row in R_relative] # Print in MATLAB-like format 
+    formatted_rows = ' ; '.join(formatted_rows)
+    print(formatted_rows) 
+    args.RotationMatrices.append(formatted_rows)
+    print("overall_angle after rotation 2: ", overall_angle)
+
+    rospy.sleep(2)
+    FT_help.setNowAsBias() 
+    args.ForceOffset3 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz]
+
     currentPose = rtde_help.getCurrentPose()
-    print("current-z before first motion segment: ", currentPose.pose.position.z)
-
     starting_x = currentPose.pose.position.x
-    syncPub.publish(1)
-    while currentPose.pose.position.x < starting_x + 0.1:
-      # Vertical adaptive motion 
-      Fz = FT_help.averageFz_noOffset
-      T_normal = adpt_help.get_Tmat_axialMove(Fz, F_normalThres)
-      # Combine the motion
-      T_move = T_horiz_world @ T_normal
 
+    syncPub.publish(1) # 1
+    while currentPose.pose.position.x < starting_x + 0.1:
+      F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
+      F_vertical_world = np.array([0,0, F_world[2]]) 
+      F_vertical_local = R_relative.T @ F_vertical_world
+      
+      T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
+      t_vertical_local = T_normal[:3, 3]
+      magnitude = np.dot(t_vertical_local, Vertical_Axis_Local)
+      t_vertical_local = magnitude*Vertical_Axis_Local
+
+      t_move = t_vertical_local + t_horiz_local
+      T_move[:3,3] = t_move
+    
       # Get the target pose 
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
-        #print(" ###################### targetPose z: ", targetPose.pose.position.z)
-      rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
+      rtde_help.goToPoseAdaptive(targetPose, time = 0.5) # EDIT TIME LINE
       currentPose = rtde_help.getCurrentPose()
 
-      # Fulfill the vertical motion
-      tolerance = 0.0010 # I'll adjust this if I start moving into cm territory
-        #print('difference: ', abs(currentPose.pose.position.z - targetPose.pose.position.z))
-      while abs(currentPose.pose.position.z - targetPose.pose.position.z) > tolerance:
-        rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
+      tolerance = 0.001 
+      while abs(currentPose.pose.position.z - targetPose.pose.position.z) >= tolerance:
+        rtde_help.goToPoseAdaptive(targetPose, time = 0.5) # EDIT TIME LINE
         currentPose = rtde_help.getCurrentPose()
+
     syncPub.publish(2) # end of the first motion segment
+  #     
+ ######################################## IF NO BEGINNING ROTATION ########################################
+    # starting_x = currentPose.pose.position.x
+    # syncPub.publish(1)
+    # while currentPose.pose.position.x < starting_x + 0.1:
+    #   # Vertical adaptive motion 
+    #   Fz = FT_help.averageFz_noOffset
+    #   print("Fz: ", Fz)
+    #   T_normal = adpt_help.get_Tmat_axialMove(Fz, F_normalThres)
+    #   # Combine the motion
+    #   T_move = T_horiz_world @ T_normal
+
+    #   # Get the target pose 
+    #   targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
+    #     #print(" ###################### targetPose z: ", targetPose.pose.position.z)
+    #   rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
+    #   currentPose = rtde_help.getCurrentPose()
+
+    #   # Fulfill the vertical motion
+    #   tolerance = 0.0010 # I'll adjust this if I start moving into cm territory
+    #     #print('difference: ', abs(currentPose.pose.position.z - targetPose.pose.position.z))
+    #   while abs(currentPose.pose.position.z - targetPose.pose.position.z) > tolerance:
+    #     rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
+    #     currentPose = rtde_help.getCurrentPose()
+    # syncPub.publish(2) # end of the first motion segment
 
   # ##################################################
   # #                  ROTATION 1                    #
   # ##################################################
     currentPose = rtde_help.getCurrentPose()
     print("current-z after lateral motion: ", currentPose.pose.position.z)
-    print("Rotation 1") 
+    #print("Rotation 1") 
     adpt_help.dw = 0.01
-    while overall_angle < 22.5: # positive rotation
-      T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # Positive Y-direction 
+    while overall_angle > -5: # positive rotation
+      T_rot_step = adpt_help.get_Tmat_RotateInY(direction=-1) # Positive Y-direction 
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
       rtde_help.goToPoseAdaptive(targetPose, time=0.05)
       
@@ -273,6 +335,8 @@ def main(args):
       T_overall = np.linalg.inv(T_start) @ T_curr # local frame to the world frame
       # Angle relative to the start
       overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi # may want to use a different angle
+      if T_overall[2, 0] > 0:  
+        overall_angle = -overall_angle
       currentPose = rtde_help.getCurrentPose()
 
   #     #############################################
@@ -290,13 +354,18 @@ def main(args):
 
     # PRINT OVERALL ANGLE
     R_relative = T_overall[:3,:3] 
-    print("R_relative HORIZ 2: ", R_relative)
+    print("R_relative HORIZ 2: ")
+    formatted_rows = [" , ".join(f"{val:.6f}" for val in row) for row in R_relative] # Print in MATLAB-like format 
+    formatted_rows = ' ; '.join(formatted_rows)
+    print(formatted_rows) 
+    args.RotationMatrices.append(formatted_rows)
     print("overall_angle after rotation 1: ", overall_angle)
+
 
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) # translation VECTOR for horizontal motion
     T_move = np.eye(4) # initialize the move vector outside loop
     Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) # world vertical axis is given by this, useful for projection in loop
-    print("Vertical_Axis_Local: ", Vertical_Axis_Local)
+   # print("Vertical_Axis_Local: ", Vertical_Axis_Local)
     
     rospy.sleep(2)
     FT_help.setNowAsBias() # zero gravity and other forces
@@ -314,6 +383,7 @@ def main(args):
       F_vertical_world = np.array([0,0, F_world[2]]) # z-component has now been isolated
       # Transform from world back to local frame
       F_vertical_local = R_relative.T @ F_vertical_world
+      print("F_vertical_local: ", F_vertical_local[2]) 
     
       # OBTAIN ADAPTIVE MOTION IN WORLD FRAME TRANSFORMED FOR MOTION IN LOCAL FRAME
       # Define transformation vector 
@@ -344,11 +414,11 @@ def main(args):
         # print('difference: ', abs(currentPose.pose.position.z - targetPose.pose.position.z))    
       #print("-----------------------------------------------------")
     syncPub.publish(4)
-  # ##################################################
-  # #                  ROTATION 2                    #
-  # ##################################################
+  # # ##################################################
+  # # #                  ROTATION 2                    #
+  # # ##################################################
 
-    while overall_angle > -22.5: # negative rotation
+    while overall_angle > -12.5: # negative rotation
         adpt_help.dw = 0.01
         T_rot_step = adpt_help.get_Tmat_RotateInY(direction=-1) # EDIT LINE: (-) Y-direction  
         currentPose = rtde_help.getCurrentPose()
@@ -370,9 +440,11 @@ def main(args):
     T_move = np.eye(4) 
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
     Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
-    print("Vertical_Axis_Local: ", Vertical_Axis_Local)
-    print("R_relative HORIZ 3: ", R_relative)
-    print("overall_angle after rotation 1: ", overall_angle)
+    formatted_rows = [" , ".join(f"{val:.6f}" for val in row) for row in R_relative] # Print in MATLAB-like format 
+    formatted_rows = ' ; '.join(formatted_rows)
+    print(formatted_rows) 
+    args.RotationMatrices.append(formatted_rows)
+    print("overall_angle after rotation 2: ", overall_angle)
 
     rospy.sleep(2)
     FT_help.setNowAsBias() 
@@ -385,6 +457,7 @@ def main(args):
       F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
       F_vertical_world = np.array([0,0, F_world[2]]) 
       F_vertical_local = R_relative.T @ F_vertical_world
+      print("F_vertical_local: ", F_vertical_local[2]) 
       
       T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
       t_vertical_local = T_normal[:3, 3]
@@ -409,9 +482,9 @@ def main(args):
   # # #                  ROTATION 3                    #
   # # ##################################################
 
-    while overall_angle > -36: # negative rotation
+    while overall_angle < 20: # negative rotation
         adpt_help.dw = 0.01
-        T_rot_step = adpt_help.get_Tmat_RotateInY(direction=-1) # EDIT LINE: (-) Y-direction  
+        T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # EDIT LINE: (-) Y-direction  
         currentPose = rtde_help.getCurrentPose()
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
         rtde_help.goToPoseAdaptive(targetPose, time=0.05)
@@ -431,9 +504,11 @@ def main(args):
     T_move = np.eye(4) 
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
     Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
-    print("Vertical_Axis_Local: ", Vertical_Axis_Local)
-    print("R_relative HORIZ 4: ", R_relative)
-    print("overall_angle after rotation 1: ", overall_angle)
+    formatted_rows = [" , ".join(f"{val:.6f}" for val in row) for row in R_relative] # Print in MATLAB-like format 
+    formatted_rows = ' ; '.join(formatted_rows)
+    print(formatted_rows) 
+    args.RotationMatrices.append(formatted_rows)
+    print("overall_angle after rotation 3: ", overall_angle)
 
     rospy.sleep(2)
     FT_help.setNowAsBias() 
@@ -446,6 +521,7 @@ def main(args):
       F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
       F_vertical_world = np.array([0,0, F_world[2]]) 
       F_vertical_local = R_relative.T @ F_vertical_world
+      print("F_vertical_local: ", F_vertical_local[2]) 
       
       T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
       t_vertical_local = T_normal[:3, 3]
@@ -470,9 +546,9 @@ def main(args):
   # #                  ROTATION 4                  #
   # ##################################################
 
-    while overall_angle < 36: # negative rotation
+    while overall_angle > -20: # negative rotation
         adpt_help.dw = 0.01
-        T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # EDIT LINE: (-) Y-direction  
+        T_rot_step = adpt_help.get_Tmat_RotateInY(direction=-1) # EDIT LINE: (-) Y-direction  
         currentPose = rtde_help.getCurrentPose()
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
         rtde_help.goToPoseAdaptive(targetPose, time=0.05)
@@ -492,9 +568,12 @@ def main(args):
     T_move = np.eye(4) 
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
     Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
-    print("Vertical_Axis_Local: ", Vertical_Axis_Local)
-    print("R_relative HORIZ 5: ", R_relative)
-    print("overall_angle after rotation 1: ", overall_angle)
+    print("R_relative HORIZ 5: ")
+    formatted_rows = [" , ".join(f"{val:.6f}" for val in row) for row in R_relative] # Print in MATLAB-like format 
+    formatted_rows = ' ; '.join(formatted_rows)
+    print(formatted_rows) 
+    args.RotationMatrices.append(formatted_rows)
+    print("overall_angle after rotation 4: ", overall_angle)
 
     rospy.sleep(2)
     FT_help.setNowAsBias() 
@@ -507,6 +586,7 @@ def main(args):
       F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
       F_vertical_world = np.array([0,0, F_world[2]]) 
       F_vertical_local = R_relative.T @ F_vertical_world
+      print("F_vertical_local: ", F_vertical_local[2]) 
       
       T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
       t_vertical_local = T_normal[:3, 3]
@@ -531,9 +611,9 @@ def main(args):
   # #                  ROTATION 5                  #
   # ##################################################
 
-    while overall_angle > 9: # negative rotation
+    while overall_angle < 12.5: # negative rotation
         adpt_help.dw = 0.01
-        T_rot_step = adpt_help.get_Tmat_RotateInY(direction= -1) # EDIT LINE: (-) Y-direction  
+        T_rot_step = adpt_help.get_Tmat_RotateInY(direction= 1) # EDIT LINE: (-) Y-direction  
         currentPose = rtde_help.getCurrentPose()
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
         rtde_help.goToPoseAdaptive(targetPose, time=0.05)
@@ -553,9 +633,12 @@ def main(args):
     T_move = np.eye(4) 
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
     Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
-    print("Vertical_Axis_Local: ", Vertical_Axis_Local)
-    print("R_relative HORIZ 6: ", R_relative)
-    print("overall_angle after rotation 1: ", overall_angle)
+    print("R_relative HORIZ 6: ")
+    formatted_rows = [" , ".join(f"{val:.6f}" for val in row) for row in R_relative] # Print in MATLAB-like format 
+    formatted_rows = ' ; '.join(formatted_rows)
+    print(formatted_rows) 
+    args.RotationMatrices.append(formatted_rows)
+    print("overall_angle after rotation 5: ", overall_angle)
 
     rospy.sleep(2)
     FT_help.setNowAsBias() 
@@ -568,6 +651,7 @@ def main(args):
       F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
       F_vertical_world = np.array([0,0, F_world[2]]) 
       F_vertical_local = R_relative.T @ F_vertical_world
+      print("F_vertical_local: ", F_vertical_local[2]) 
       
       T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
       t_vertical_local = T_normal[:3, 3]
@@ -591,7 +675,7 @@ def main(args):
   # #                  ROTATION 6                  #
   # ##################################################
 
-    while overall_angle > -9: # negative rotation
+    while overall_angle > 0: # negative rotation
         adpt_help.dw = 0.01
         T_rot_step = adpt_help.get_Tmat_RotateInY(direction= -1) # EDIT LINE: (-) Y-direction  
         currentPose = rtde_help.getCurrentPose()
@@ -613,9 +697,12 @@ def main(args):
     T_move = np.eye(4) 
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
     Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
-    print("Vertical_Axis_Local: ", Vertical_Axis_Local)
-    print("R_relative HORIZ 7: ", R_relative)
-    print("overall_angle after rotation 1: ", overall_angle)
+    print("R_relative HORIZ 7: ")
+    formatted_rows = [" , ".join(f"{val:.6f}" for val in row) for row in R_relative] # Print in MATLAB-like format 
+    formatted_rows = ' ; '.join(formatted_rows)
+    print(formatted_rows) 
+    args.RotationMatrices.append(formatted_rows)
+    print("overall_angle after rotation 6: ", overall_angle)
 
     rospy.sleep(2)
     FT_help.setNowAsBias() 
@@ -628,6 +715,7 @@ def main(args):
       F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
       F_vertical_world = np.array([0,0, F_world[2]]) 
       F_vertical_local = R_relative.T @ F_vertical_world
+      print("F_vertical_local: ", F_vertical_local[2]) 
       
       T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
       t_vertical_local = T_normal[:3, 3]
@@ -660,7 +748,7 @@ def main(args):
     print("============ Python UR_Interface demo complete!")
 
     # save data and clear the temporary folder
-    file_help.saveDataParams(args, appendTxt='beta_'+str(args.beta)+'_Shergill_Snout_Experiment_VERTICAL_trial_'+str(args.trialNum))
+    file_help.saveDataParams(args, appendTxt='beta_'+str(args.beta)+'_VERTICAL_trial_'+str(args.trialNum)+'_Shergill_Snout_Experiment')
     file_help.clearTmpFolder()
 
     
@@ -673,10 +761,10 @@ def main(args):
 if __name__ == '__main__':
   import argparse
   parser = argparse.ArgumentParser()
-  parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 5)
-  parser.add_argument('--pathlLimit', type=float, help='path-length limit for the adaptive motion (m)', default= 0.01)
+  # parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 5)
+  # parser.add_argument('--pathlLimit', type=float, help='path-length limit for the adaptive motion (m)', default= 0.01)
   parser.add_argument('--normalForce', type=float, help='normal force threshold', default=0.5)
-  parser.add_argument('--beta', type=float, help='beta angle of wedge', default= 0) # wrote zero so I realize I didn't change this parameter
+  parser.add_argument('--beta', type=int, help='beta angle of wedge', default= 0) # wrote zero so I realize I didn't change this parameter
   parser.add_argument('--trialNum', type=int, help='Trial number', default= 1)
   args = parser.parse_args()    
 
