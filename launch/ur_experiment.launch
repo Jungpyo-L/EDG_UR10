@@ -9,6 +9,9 @@
         <!-- Launch data Logger -->
         <node pkg="edg_ur10"           type="data_logger.py"                 name="data_logger"            output="screen" />
 
+         <!-- DIGIT image publisher -->
+        <node pkg="edg_ur10" type="digitFramePublisher.py" name="digitFramePublisher" output="screen" />
+
         <!-- This launch a graphing tool which shows the 10 last seconds of the values coming from the Force/Torque sensor.  -->
 	<node pkg="rqt_multiplot" type="rqt_multiplot" name="rqt_multiplot_node" output="screen" args="--multiplot-run-all --multiplot-config $(find edg_ur10)/launch/rqt_multiplot_ATI.xml" />
 

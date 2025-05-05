@@ -1,20 +1,20 @@
 #!/usr/bin/env python
-from ast import arg
 import os
 from datetime import datetime
 import numpy as np
 import pandas as pd
 from scipy.io import savemat
 import re
+import cv2
 
 class fileSaveHelp(object):
-    def __init__(self, savingFolderName = 'EDG_Experiment'):
+    def __init__(self, savingFolderName='EDG_Experiment'):
         self.savingFolderName = savingFolderName
-        self.ResultSavingDirectory = os.path.expanduser('~') + '/' + self.savingFolderName + '/' + datetime.now().strftime("%y%m%d")        
+        self.ResultSavingDirectory = os.path.expanduser('~') + '/' + self.savingFolderName + '/' + datetime.now().strftime("%y%m%d")
         if not os.path.exists(self.ResultSavingDirectory):
             os.makedirs(self.ResultSavingDirectory)
-        
-    def getLastMatFileSaved(self):    
+
+    def getLastMatFileSaved(self):
         fileList = []
         for file in os.listdir(self.ResultSavingDirectory):
             if file.endswith(".mat"):
@@ -24,69 +24,93 @@ class fileSaveHelp(object):
         except Exception as e:
             print(e)
         return "none"
-    
-    # Clear all csv files in the tmp folder
+
     def clearTmpFolder(self):
         fileList = []
         for file in os.listdir("/tmp"):
             if file.endswith(".csv"):
-                fileList.append(os.path.join("/tmp", file))        
+                fileList.append(os.path.join("/tmp", file))
         for fileName in fileList:
             os.remove(fileName)
 
+    def saveDataParams(self, args=None, appendTxt='', image_frames=None):
+        print("[DEBUG] saveDataParams called with image_frames")
 
-    def saveDataParams(self, args=None, appendTxt = ''):    
-
-        #check if CSV Files are available
         tmp_dummyFolder = '/tmp/processed_csv'
         if not os.path.exists(tmp_dummyFolder):
             os.makedirs(tmp_dummyFolder)
-        
-        # First Check all CSV files in /tmp/ and bring them in as a variable  
+
         fileList = []
         for file in os.listdir("/tmp"):
             if file.endswith(".csv"):
                 fileList.append(os.path.join("/tmp", file))
-                
+
         print("csv files: ", fileList)
         print("grabbing columns from csv files into one dataframe")
         savingDictionary = {}
         errorCount = 0
         for fileName in fileList:
             print("trying file: ", fileName)
-            try:    
-                df=pd.read_csv(fileName)             
-                                    
+            try:
+                df = pd.read_csv(fileName)
                 thisColumnName = df.columns.tolist()
-                
-                splitedList = re.split('_|\.', fileName)        
-                thisTopicName = ''.join(splitedList[4:-1])        
-                
-                savingDictionary[thisTopicName+"_columnName"] = thisColumnName
-                savingDictionary[thisTopicName+"_data"] = df.values
-                #move to temparary folder    
-                os.rename(fileName, tmp_dummyFolder + '/' + re.split('/',fileName)[-1])
+                splitedList = re.split('_|\.', fileName)
+                thisTopicName = ''.join(splitedList[4:-1])
+                savingDictionary[thisTopicName + "_columnName"] = thisColumnName
+                savingDictionary[thisTopicName + "_data"] = df.values
+                os.rename(fileName, tmp_dummyFolder + '/' + os.path.basename(fileName))
             except Exception as e:
                 print(e)
-                errorCount +=1
+                errorCount += 1
 
         if errorCount > 0:
-            print("!!!!-- Mised ", errorCount, " csv files --!!!!")
+            print("!!!!-- Missed ", errorCount, " csv files --!!!!")
 
-        # Save all the contents in the args as variables
         if args is not None:
             argsDic = vars(args)
             for key in list(argsDic.keys()):
-                savingDictionary[key]=argsDic[key]
-        
+                savingDictionary[key] = argsDic[key]
 
-        savingFileName_noDir = 'DataLog_'+ '_'.join(splitedList[1:4])
+        # savingFileName_noDir = 'DataLog_' + '_'.join(splitedList[1:4])
+        from datetime import datetime
+        time_tag = datetime.now().strftime("%Y_%m%d_%H%M%S")
+        savingFileName_noDir = 'DataLog_' + time_tag
+
         savingFileName = self.ResultSavingDirectory + '/' + savingFileName_noDir + '_' + appendTxt + '.mat'
         print(savingFileName)
 
+        # Save image frames with timestamps
+        if image_frames is not None and isinstance(image_frames, dict):
+            try:
+                image_array = np.stack(image_frames['images'], axis=0)
+                timestamps = np.array(image_frames['timestamps'])
+
+                savingDictionary["digit_image_frames"] = image_array
+                savingDictionary["digit_image_timestamps"] = timestamps
+                print("[✓] Saved image frames and timestamps to .mat")
+
+                # Also save as video
+                video_filename = savingFileName.replace('.mat', '.avi')
+                height, width = image_array.shape[1], image_array.shape[2]
+                if image_array.ndim == 4:
+                    _, height, width, _ = image_array.shape
+
+                fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                out = cv2.VideoWriter(video_filename, fourcc, 30.0, (width, height))
+                for frame in image_array:
+                    if frame.ndim == 2:
+                        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+                    else:
+                        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    out.write(frame)
+                out.release()
+                print(f"[✓] Saved DIGIT video: {video_filename}")
+            except Exception as e:
+                print(f"[!] Failed to save DIGIT video or frames: {e}")
+        
+        else:
+            print("[!] No image frames to save.")
+
         savemat(savingFileName, savingDictionary)
         print("savingFileName_noDir: ", savingFileName_noDir)
-
         return self.ResultSavingDirectory, savingFileName_noDir
-
-

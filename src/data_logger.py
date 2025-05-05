@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+
+# This data logger includes image data from the Digit sensor
 import sys
 import os
 import rospy
@@ -12,6 +14,7 @@ import numbers
 import collections
 from operator import attrgetter
 from datetime import datetime
+
 
 # Current state of logging
 isLoggingEnabled = False
@@ -38,6 +41,33 @@ topic_types = []
 output_file_name = {}
 output_file = {}
 all_output_file_names = ""
+
+# For image data
+import sys
+import os
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+helper_path = os.path.join(current_dir, "helperFunction")
+sys.path.append(helper_path)
+
+from fileSaveHelper import fileSaveHelp
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+bridge = CvBridge()
+file_helper = fileSaveHelp()
+
+# Buffer to store image and timestamp
+digit_image_buffer = []  # each entry: (rospy.Time, np.ndarray)
+digit_image_topic = "/digitFrame"  # update if your topic name is different
+
+def digit_image_callback(msg):
+    try:
+        ros_time = msg.header.stamp
+        img = bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+        digit_image_buffer.append((ros_time.to_sec(), img))
+    except Exception as e:
+        rospy.logerr(f"[X] Failed to convert image in digit_image_callback: {e}")
+    # Numeric topic logging (as-is)
 
 
 def appendDataPoint(topic, msg):
@@ -239,7 +269,13 @@ def loadConfigFile(filePath):
                 continue
 
             # Subscribe
-            sub = rospy.Subscriber(topic_str, AnyMsg, callback, (topic_str, msg_name))
+            if msg_name == "sensor_msgs/Image":
+                sub = rospy.Subscriber(topic_str, Image, digit_image_callback)
+                rospy.loginfo(f"Subscribed to image topic '{topic_str}' with Image callback")
+            else:
+                sub = rospy.Subscriber(topic_str, AnyMsg, callback, (topic_str, msg_name))
+                rospy.loginfo(f"Subscribed to '{topic_str}' with type '{msg_name}'")
+
             listOfTopics.append(topic_str)
             listOfSubscribers.append(sub)
             rospy.loginfo("Subscribed to '%s' with type '%s'", topic_str, msg_name)
@@ -311,7 +347,19 @@ def setLoggingState(request):
             rospy.loginfo("Data logging was already disabled.")
 
         isLoggingEnabled = False
+
+        # Prepare dict for .mat saving
+        digit_image_dict = {
+            'timestamps': [t for t, _ in digit_image_buffer],
+            'images': [img for _, img in digit_image_buffer]
+        }
+
+        # Save
+        file_helper.saveDataParams(appendTxt='digit_data_log', image_frames=digit_image_dict)
+        digit_image_buffer.clear()
+
         return EnableResponse(all_output_file_names)
+
 
 
 if __name__ == '__main__':
