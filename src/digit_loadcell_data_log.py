@@ -72,7 +72,7 @@ def main(args):
   file_help = fileSaveHelp()
   rospy.sleep(0.5)
   rtde_help = rtdeHelp(125)
-  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= 5e-3)
+  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= 0.05e-3) # need to change d_z to change the speed of the robot
   rospy.sleep(0.5)
 
   # Set up DIGIT frame subscriber
@@ -104,7 +104,7 @@ def main(args):
 
 
   # Set the pose A
-  positionA = [0.580, -0.098, 0.223]
+  positionA = [0.600, -0.098, 0.123]
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
   
@@ -141,14 +141,14 @@ def main(args):
     # targetPWM_Pub.publish(DUTYCYCLE_0)
     syncPub.publish(SYNC_START)
     while farFlag:
-        if targetPoseEngaged.pose.position.z > positionA[2] - 0.008:
+        if targetPoseEngaged.pose.position.z > positionA[2] - 0.020 and F_normal > -2: # 8 mm
           T_move = adpt_help.get_Tmat_TranlateInZ(direction = 1)
           targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
           rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
 
           # new z height
           targetPoseEngaged = rtde_help.getCurrentPose()
-          rospy.sleep(0.1)
+          F_normal = FT_help.averageFz_noOffset
 
         else:
           farFlag = False
