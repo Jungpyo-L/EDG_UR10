@@ -72,7 +72,7 @@ def main(args):
   file_help = fileSaveHelp()
   rospy.sleep(0.5)
   rtde_help = rtdeHelp(125)
-  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= 0.001e-3) # need to change d_z to change the speed of the robot
+  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= 0.005e-2) # need to change d_z to change the speed of the robot
   rospy.sleep(0.5)
 
   # Set up DIGIT frame subscriber
@@ -104,8 +104,8 @@ def main(args):
 
 
   # Set the pose A
-  # positionA = [0.600, -0.098, 0.018]   # 0.02 for 3 metal plates
-  positionA = [0.600, -0.098, 0.021]   # 0.04 for 3 metal plates and texture cube
+  positionA = [0.600, -0.140, 0.019]   # 0.02 for 3 metal plates
+  # positionA = [0.600, -0.140, 0.021]   # 0.04 for 3 metal plates and texture cube
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
   
@@ -142,23 +142,37 @@ def main(args):
     # targetPWM_Pub.publish(DUTYCYCLE_0)
     syncPub.publish(SYNC_START)
     while farFlag:
-        if targetPoseEngaged.pose.position.z > positionA[2] - 0.015 and F_normal > -10: # 8 mm
-          T_move = adpt_help.get_Tmat_TranlateInZ(direction = 1)
-          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-          rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+        # N cycles of loading/unloading
+        N_cycles = 20
+        for i in range(N_cycles):
+          print("Cycle: " + str(i+1) + " / " + str(N_cycles))
+          # load
+          while targetPoseEngaged.pose.position.z > positionA[2] - 0.015 and F_normal > -30: # 8 mm
+            T_move = adpt_help.get_Tmat_TranlateInZ(direction = 1)
+            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
+            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
 
-          # new z height
-          targetPoseEngaged = rtde_help.getCurrentPose()
-          F_normal = FT_help.averageFz_noOffset
+            # new z height
+            targetPoseEngaged = rtde_help.getCurrentPose()
+            F_normal = FT_help.averageFz_noOffset
 
-        else:
-          farFlag = False
-          rtde_help.stopAtCurrPoseAdaptive()
-          print("reached threshhold normal force: ", F_normal)
-          args.normalForceUsed= F_normal
-          rospy.sleep(0.8)
-          syncPub.publish(SYNC_STOP)
-          rospy.sleep(0.2)
+          # unload
+          while targetPoseEngaged.pose.position.z < positionA[2]:
+            T_move = adpt_help.get_Tmat_TranlateInZ(direction = -1)
+            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
+            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+
+            # new z height
+            targetPoseEngaged = rtde_help.getCurrentPose()
+            F_normal = FT_help.averageFz_noOffset
+
+        farFlag = False
+        rtde_help.stopAtCurrPoseAdaptive()
+        print("reached threshhold normal force: ", F_normal)
+        args.normalForceUsed= F_normal
+        rospy.sleep(0.8)
+        syncPub.publish(SYNC_STOP)
+        rospy.sleep(0.2)
 
     # stop data logging
     record_digit = False
