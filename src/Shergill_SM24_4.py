@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# MAKE INTO AN EXECUTABLE
 # Created by Nimran Shergill (April 21 2025). 
 # This is a file for combining planar motion with rotational motion.
 # This file is part of the EDG UR10 project.
@@ -86,7 +85,7 @@ def main(args):
   # Pose B has to be defined relative to A so it is defined during the motion sequence
 
   # We descend into media. No rotation. 
-  PositionC = [0.200, -0.230, 0.260] # approx 8 cm below surface of grains
+  PositionC = [0.200, -0.230, 0.300] # approx 7 cm below surface of grains, edit to 0.270
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
 
@@ -130,9 +129,73 @@ def main(args):
 
     input("Press <Enter> to snout motion sequence with horizontal motion + rotations")
     dataLoggerEnable(True)
-    
+    rospy.sleep(0.5) # default is 0.5
+
+    ################################ INITIATE MOTION SEQUENCE ################################
+    # Initializing parameters
+    T_move = np.eye(4) 
+    overall_angle = 0 
+    currentPose = rtde_help.getCurrentPose()
+    T_start = adpt_help.get_Tmat_from_Pose(currentPose) # get the transformation matrix from the current pose
+    R_start = T_start[:3,:3] # get the rotation matrix from the transformation matrix
+    FT_help.setNowAsBias() # not needed yet, but will be used later
+
+    currentPose = rtde_help.getCurrentPose() # get the current pose after the motion
+
+    while overall_angle < 10: 
+      # Task: Move forward and rotate to 5 degrees along the way
+      # Define some conditional to stop doing the joint motion
+      # To create motion:
+      # Define motion matrix
+      adpt_help.dw = 0.05 # slowing down the rotation speed
+      T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # rotate in y direction, about the 
+      T_horizontal_step = adpt_help.get_Tmat_TranlateInX(direction=-1) # move in x direction 
+      T_vertical_step = adpt_help.get_Tmat_TranlateInZ(direction=1) # move in z direction, not used here but can be used later
+      # print("T_rot_step: ", T_rot_step)
+      # print("T_horizontal_step: ", T_horizontal_step)
+      # print("T_vertical_step: ", T_vertical_step)
+
+      # Does not consider motion strictly in the global frame, but rather in the local frame of the robot
+      # both T_move and T_move2 work
+      T_move = T_horizontal_step @ T_rot_step # T_move = Translation * Rotation * Scaling
+      T_trans = T_horizontal_step @ T_vertical_step
+      print("T_trans: ", T_trans)
+      print("T_rot_step: ", T_rot_step)
+      T_move2 = T_trans @ T_rot_step # T_move = Translation * Rotation * Scaling
+      print("T_move2: ", T_move2)
+
+      # TODO: projecting back to the global frame
+
+
+      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move2, currentPose) # get the target pose from the transformation matrix and the current pose
+      rtde_help.goToPoseAdaptive(targetPose, time=0.5) # move to the target pose
+      
+      
+      currentPose = rtde_help.getCurrentPose() # get the current pose after the motion
+      T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
+      T_overall = np.linalg.inv(T_start) @ T_curr 
+      overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
+      if T_overall[2, 0] > 0:  
+          overall_angle = -overall_angle
+      print("Current angle: ", overall_angle)
+      print('Current x position: ', currentPose.pose.position.x)
+    #rtde_help.stopAtCurrPoseAdaptive() # stop at the current pose
+
+
 
   except rospy.ROSInterruptException:
         return
   except KeyboardInterrupt:
         return  
+
+if __name__ == '__main__':
+  import argparse
+  parser = argparse.ArgumentParser()
+  # parser.add_argument('--timeLimit', type=float, help='time limit for the adaptive motion', default= 5)
+  # parser.add_argument('--pathlLimit', type=float, help='path-length limit for the adaptive motion (m)', default= 0.01)
+  parser.add_argument('--normalForce', type=float, help='normal force threshold', default=0.5)
+  parser.add_argument('--beta', type=int, help='beta angle of wedge', default= 0) # wrote zero so I realize I didn't change this parameter
+  parser.add_argument('--trialNum', type=int, help='Trial number', default= 1)
+  args = parser.parse_args()    
+
+  main(args)
