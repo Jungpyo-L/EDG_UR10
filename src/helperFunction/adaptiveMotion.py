@@ -47,19 +47,19 @@ class adaptMotionHelp(object):
     def get_Tmat_TranlateInBodyF(self, translate = [0., 0., 0.]): #format
         return create_transform_matrix(np.eye(3), translate)
 
-    def get_Tmat_TranlateInZ(self, direction = 1):     #format
+    def get_Tmat_TranslateInZ(self, direction = 1):     #format
         offset = [0.0, 0.0, np.sign(direction)*self.d_z_normal]
         # if step:
         #     offset = [0.0, 0.0, np.sign(direction)*step]
         return self.get_Tmat_TranlateInBodyF(translate = offset)
 
-    def get_Tmat_TranlateInY(self, direction = 1):
+    def get_Tmat_TranslateInY(self, direction = 1):
         offset = [0.0, np.sign(direction)*self.d_lat, 0.0]
         # if step:
         #     offset = [0.0, 0.0, np.sign(direction)*step]
         return self.get_Tmat_TranlateInBodyF(translate = offset)
     
-    def get_Tmat_TranlateInX(self, direction = 1):
+    def get_Tmat_TranslateInX(self, direction = 1):
         offset = [np.sign(direction)*self.d_lat, 0.0, 0.0]
         # if step:
         #     offset = [0.0, 0.0, np.sign(direction)*step]

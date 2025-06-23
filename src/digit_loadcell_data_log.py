@@ -143,7 +143,7 @@ def main(args):
     syncPub.publish(SYNC_START)
     while farFlag:
         if targetPoseEngaged.pose.position.z > positionA[2] - 0.015 and F_normal > -10: # 8 mm
-          T_move = adpt_help.get_Tmat_TranlateInZ(direction = 1)
+          T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
           targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
           rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
 
