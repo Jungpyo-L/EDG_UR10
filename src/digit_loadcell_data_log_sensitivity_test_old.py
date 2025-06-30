@@ -69,10 +69,11 @@ def main(args):
   # Setup helper functions
   FT_help = FT_CallbackHelp() # it deals with subscription.
   rospy.sleep(0.5)
-  file_help = fileSaveHelp()
+  file_help = fileSaveHelp(saveFrames=False)
   rospy.sleep(0.5)
   rtde_help = rtdeHelp(125)
-  adpt_help = adaptMotionHelp(d_w = 5e-5, d_lat = 1e-5, d_z= 2e-5) # need to change d_z to change the speed of the robot
+  base_z_speed = 2e-6
+  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= base_z_speed) # need to change d_z to change the speed of the robot
   rospy.sleep(0.5)
 
   # Set up DIGIT frame subscriber
@@ -104,7 +105,7 @@ def main(args):
 
 
   # Set the pose A
-  positionA = [0.600, -0.140, 0.008]   # for 2 metal plates
+  positionA = [0.604, -0.170, 0.022]   # for test sheet on 3 metal plates
   # positionA = [0.600, -0.140, 0.021]   # 0.04 for 3 metal plates and texture cube
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
@@ -132,83 +133,118 @@ def main(args):
     dataLoggerEnable(True)
     rospy.sleep(0.2)
 
-    # flags and variables
-    
-    farFlag = True
-    # slow approach until it reach target height
+    # initial setup
     F_normal = FT_help.averageFz_noOffset
     targetPoseEngaged = rtde_help.getCurrentPose()
     targetPose = targetPoseEngaged  # Initialize targetPose
-    # targetPWM_Pub.publish(DUTYCYCLE_0)
     syncPub.publish(SYNC_START)
-    while farFlag:
-        # N cycles of loading/unloading
-        N_cycles = 10
-        for i in range(N_cycles):
-          print("Cycle: " + str(i+1) + " / " + str(N_cycles))
-          # load
-          print("load")
-          while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -20:
-            T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
-            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
 
-            # new z height
-            targetPoseEngaged = rtde_help.getCurrentPose()
-            F_normal = FT_help.averageFz_noOffset
+    # set movement parameters
+    step_time = 1
+    T_down = adpt_help.get_Tmat_TranslateInZ(direction = 1)
+    T_up = adpt_help.get_Tmat_TranslateInZ(direction = -1)
 
-          # drag
-          print("drag")
-          while abs(targetPoseEngaged.pose.position.x - positionA[0]) < 0.003: # move _ m
-            T_move = adpt_help.get_Tmat_TranslateInY(direction = -1)
-            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+    print("Controls: w = up, s = down, e = exit")
 
-            # new y pos
-            targetPoseEngaged = rtde_help.getCurrentPose()
-            F_shear = FT_help.averageFy_noOffset
+    # force setpoint
+    force_setpoint = 0
 
-          rospy.sleep(0.5)
+    while True:
+      key = input('Press a key (w/s/e): ').strip().lower()
 
-          # unload
-          print("unload")
-          while targetPoseEngaged.pose.position.z < positionA[2]:
-            T_move = adpt_help.get_Tmat_TranslateInZ(direction = -1)
-            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+      # update targetPoseEngaged and F_normal every iteration
+      targetPoseEngaged = rtde_help.getCurrentPose()
+      targetPose = targetPoseEngaged
+      F_normal = FT_help.averageFz_noOffset
 
-            # new z height
-            targetPoseEngaged = rtde_help.getCurrentPose()
-            F_shear = FT_help.averageFy_noOffset
+      force_inc = 1
 
-          # reset
-          print("reset")
-          while targetPoseEngaged.pose.position.x > positionA[0]:
-            T_move = adpt_help.get_Tmat_TranslateInY(direction = 1)
-            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
-
-            # new y pos
-            targetPoseEngaged = rtde_help.getCurrentPose()
-            F_normal = FT_help.averageFz_noOffset
-
-        farFlag = False
+      # deal with inputs
+      if key == 'w':
+        force_setpoint += force_inc
+      elif key == 's':
+        force_setpoint -= force_inc
+      elif key == 'e':
+        print("Exiting the loop and returning to pose A.")
         rtde_help.stopAtCurrPoseAdaptive()
-        print("reached threshhold normal force: ", F_normal)
-        args.normalForceUsed= F_normal
-        rospy.sleep(0.8)
         syncPub.publish(SYNC_STOP)
-        rospy.sleep(0.2)
+        break
 
+      print(f"fz_setpoint: {force_setpoint:.4f}, fz: {F_normal:.4f}")
+
+      # now, let's use two-step proportional controller to get to force setpoint
+      if F_normal > force_setpoint:
+        while (F_normal - force_setpoint) > 0.1 and F_normal > -30:
+          # set speed proportional to force error
+          speed_multiplier = min(1, abs(F_normal - force_setpoint) / 20.0)  # adjust the divisor for sensitivity
+          adpt_help.d_z_normal = max(base_z_speed/40, base_z_speed * speed_multiplier)  # ensure speed is not too low
+          
+          # move
+          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_down, targetPose)
+          rtde_help.goToPoseAdaptive(targetPose, time=step_time)
+
+          targetPoseEngaged = rtde_help.getCurrentPose()
+          F_normal = FT_help.averageFz_noOffset
+
+          print("down")
+
+        rospy.sleep(0.5)
+
+        # approach setpoint in other direction now
+        while (force_setpoint - F_normal) > 0.2 and F_normal > -30:
+          adpt_help.d_z_normal = 1e-7
+          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_up, targetPose)
+          rtde_help.goToPoseAdaptive(targetPose, time=step_time)
+
+          targetPoseEngaged = rtde_help.getCurrentPose()
+          F_normal = FT_help.averageFz_noOffset
+          print('adjusting')
+
+      
+      elif F_normal < force_setpoint:
+        while (force_setpoint - F_normal) > 0.1 and F_normal > -30 and targetPoseEngaged.pose.position.z < positionA[2]:
+          # set speed proportional to force error
+          speed_multiplier = min(1, abs(F_normal - force_setpoint) / 20.0)  # adjust the divisor for sensitivity
+          adpt_help.d_z_normal = max(base_z_speed/100, base_z_speed * speed_multiplier)  # ensure speed is not too low
+          
+          # move
+          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_up, targetPose)
+          rtde_help.goToPoseAdaptive(targetPose, time=step_time)
+
+          targetPoseEngaged = rtde_help.getCurrentPose()
+          F_normal = FT_help.averageFz_noOffset
+
+          print("up")
+
+        rospy.sleep(0.5)
+
+        # approach setpoint in other direction now
+        while (F_normal - force_setpoint) > 0.2 and F_normal > -30:
+          adpt_help.d_z_normal = 1e-7
+          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_down, targetPose)
+          rtde_help.goToPoseAdaptive(targetPose, time=step_time)
+
+          targetPoseEngaged = rtde_help.getCurrentPose()
+          F_normal = FT_help.averageFz_noOffset
+          print('adjusting')
+
+      # default to no motion
+      rtde_help.stopAtCurrPoseAdaptive()
+
+      # wait a little
+      rospy.sleep(1)
+
+      # print current pose and force, limit to 4 decimal places
+      print(f"z: {targetPoseEngaged.pose.position.z:.4f}, Fz: {F_normal:.4f}")
+
+    # after loop ends, stop motion, return to original pose
     # stop data logging
     record_digit = False
     dataLoggerEnable(False)
     rospy.sleep(0.5)
-
     # back to pose A
     rtde_help.goToPose(poseA)
     rospy.sleep(1)
-
 
     # # save data and clear the temporary folder
     # file_help.saveDataParams(args, appendTxt='digit_data_log_'+'Test', image_frames=digit_frames)
@@ -219,7 +255,28 @@ def main(args):
     return
   except KeyboardInterrupt:
     return  
-
+  
+# functions for keyboard control
+def on_press(key):
+  global moving_up, moving_down, exit_requested
+  try:
+    if key -- keyboard.Key.up:
+      moving_up = True
+    elif key == keyboard.Key.down:
+      moving_down = True
+    elif key.char == 'e':
+      exit_requested = True
+  except AttributeError:
+    pass
+def on_release(key):
+  global moving_up, moving_down
+  try:
+    if key == keyboard.Key.up:
+      moving_up = False
+    elif key == keyboard.Key.down:
+      moving_down = False
+  except AttributeError:
+    pass
 
 if __name__ == '__main__':  
   import argparse

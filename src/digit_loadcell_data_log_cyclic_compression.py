@@ -69,10 +69,10 @@ def main(args):
   # Setup helper functions
   FT_help = FT_CallbackHelp() # it deals with subscription.
   rospy.sleep(0.5)
-  file_help = fileSaveHelp()
+  file_help = fileSaveHelp(saveFrames=False)
   rospy.sleep(0.5)
   rtde_help = rtdeHelp(125)
-  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= 0.005e-2) # need to change d_z to change the speed of the robot
+  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= 0.005e-3) # need to change d_z to change the speed of the robot
   rospy.sleep(0.5)
 
   # Set up DIGIT frame subscriber
@@ -104,7 +104,7 @@ def main(args):
 
 
   # Set the pose A
-  positionA = [0.600, -0.140, 0.019]   # 0.02 for 3 metal plates
+  positionA = [0.604, -0.170, 0.025]   # for raised indenter
   # positionA = [0.600, -0.140, 0.021]   # 0.04 for 3 metal plates and texture cube
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
@@ -143,11 +143,11 @@ def main(args):
     syncPub.publish(SYNC_START)
     while farFlag:
         # N cycles of loading/unloading
-        N_cycles = 20
+        N_cycles = 1
         for i in range(N_cycles):
           print("Cycle: " + str(i+1) + " / " + str(N_cycles))
           # load
-          while targetPoseEngaged.pose.position.z > positionA[2] - 0.015 and F_normal > -30: # 8 mm
+          while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -40:
             T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
             targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
             rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
@@ -155,6 +155,10 @@ def main(args):
             # new z height
             targetPoseEngaged = rtde_help.getCurrentPose()
             F_normal = FT_help.averageFz_noOffset
+
+            # print(F_normal, FT_help.thisForce.force.z)
+
+          print("current normal force: ", F_normal)
 
           # unload
           while targetPoseEngaged.pose.position.z < positionA[2]:
@@ -165,6 +169,8 @@ def main(args):
             # new z height
             targetPoseEngaged = rtde_help.getCurrentPose()
             F_normal = FT_help.averageFz_noOffset
+
+            # print(F_normal, FT_help.thisForce.force.z)
 
         farFlag = False
         rtde_help.stopAtCurrPoseAdaptive()

@@ -8,8 +8,9 @@ import re
 import cv2
 
 class fileSaveHelp(object):
-    def __init__(self, savingFolderName='EDG_Experiment'):
+    def __init__(self, savingFolderName='EDG_Experiment', saveFrames=False):
         self.savingFolderName = savingFolderName
+        self.saveFrames = saveFrames
         self.ResultSavingDirectory = os.path.expanduser('~') + '/' + self.savingFolderName + '/' + datetime.now().strftime("%y%m%d")
         if not os.path.exists(self.ResultSavingDirectory):
             os.makedirs(self.ResultSavingDirectory)
@@ -82,29 +83,42 @@ class fileSaveHelp(object):
         # Save image frames with timestamps
         if image_frames is not None and isinstance(image_frames, dict):
             try:
-                image_array = np.stack(image_frames['images'], axis=0)
-                timestamps = np.array(image_frames['timestamps'])
+                if (self.saveFrames):
+                    image_array = np.stack(image_frames['images'], axis=0)
+                    timestamps = np.array(image_frames['timestamps'])
 
-                savingDictionary["digit_image_frames"] = image_array
-                savingDictionary["digit_image_timestamps"] = timestamps
-                print("[✓] Saved image frames and timestamps to .mat")
+                    savingDictionary["digit_image_frames"] = image_array
+                    savingDictionary["digit_image_timestamps"] = timestamps
+                    print("[✓] Saved image frames and timestamps to .mat")
 
-                # Also save as video
-                video_filename = savingFileName.replace('.mat', '.avi')
-                height, width = image_array.shape[1], image_array.shape[2]
-                if image_array.ndim == 4:
-                    _, height, width, _ = image_array.shape
+                    # Also save as video
+                    video_filename = savingFileName.replace('.mat', '.avi')
+                    height, width = image_array.shape[1], image_array.shape[2]
+                    if image_array.ndim == 4:
+                        _, height, width, _ = image_array.shape
 
-                fourcc = cv2.VideoWriter_fourcc(*'XVID')
-                out = cv2.VideoWriter(video_filename, fourcc, 30.0, (width, height))
-                for frame in image_array:
-                    if frame.ndim == 2:
-                        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-                    else:
-                        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                    out.write(frame)
-                out.release()
-                print(f"[✓] Saved DIGIT video: {video_filename}")
+                    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                    out = cv2.VideoWriter(video_filename, fourcc, 30.0, (width, height))
+                    for frame in image_array:
+                        if frame.ndim == 2:
+                            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+                        else:
+                            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                        out.write(frame)
+                    out.release()
+                    print(f"[✓] Saved DIGIT video: {video_filename}")
+                else:
+                    # calculate delta intensity wrt first frame
+                    first_frame = image_frames['images'][0]
+                    delta_frames = np.array([np.abs(frame.astype(np.float32) - first_frame.astype(np.float32)) for frame in image_frames['images']])
+                    timestamps = np.array(image_frames['timestamps'])
+                    delta_intensity = np.mean(delta_frames, axis=(1,2,3))
+
+                    # we can just save delta intensity
+                    savingDictionary["digit_change_intensity"] = delta_intensity
+                    savingDictionary["digit_image_timestamps"] = timestamps
+                    print("[✓] Saved delta intensity of image frames to .mat")
+
             except Exception as e:
                 print(f"[!] Failed to save DIGIT video or frames: {e}")
         
