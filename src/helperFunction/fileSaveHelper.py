@@ -8,7 +8,7 @@ import re
 import cv2
 
 class fileSaveHelp(object):
-    def __init__(self, savingFolderName='EDG_Experiment', saveFrames=False):
+    def __init__(self, savingFolderName='EDG_Experiment', saveFrames=True):
         self.savingFolderName = savingFolderName
         self.saveFrames = saveFrames
         self.ResultSavingDirectory = os.path.expanduser('~') + '/' + self.savingFolderName + '/' + datetime.now().strftime("%y%m%d")
