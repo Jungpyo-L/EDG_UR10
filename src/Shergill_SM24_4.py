@@ -143,6 +143,7 @@ def main(args):
     currentPose = rtde_help.getCurrentPose() # get the current pose after the motion
 
     while overall_angle < 7: 
+      adpt_help.dw = 0.01 # slowing down the rotation speed
       # Task: Move forward and rotate to 5 degrees along the way
       # Define some conditional to stop doing the joint motion
       # To create motion:
@@ -150,42 +151,40 @@ def main(args):
       currentPose = rtde_help.getCurrentPose() # get the current pose after the motion
       T_curr = adpt_help.get_Tmat_from_Pose(currentPose) # get the transformation matrix from the current pose
       R_local = T_curr[:3,:3] # get the rotation matrix from the transformation matrix
-      print("R_local: ", R_local)
+      # print("R_local: ", R_local)
 
       F_world = R_local @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset]) # force in the world frame
-      T_vertical = adpt_help.get_Tmat_axialMovement(F_world[2], F_normalThres) # get the transformation matrix for the vertical movement
+      T_vertical = adpt_help.get_Tmat_axialMove(F_world[2], F_normalThres) # get the transformation matrix for the vertical movement
       print("T_vertical: ", T_vertical)
 
-      adpt_help.dw = 0.05 # slowing down the rotation speed
       T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # rotate in y direction, about the 
       T_horizontal_step = adpt_help.get_Tmat_TranlateInX(direction=-1) # move in x direction 
       T_vertical_step = adpt_help.get_Tmat_TranlateInZ(direction=1) # move in z direction, not used here but can be used later
-      # print("T_rot_step: ", T_rot_step)
-      # print("T_horizontal_step: ", T_horizontal_step)
-      # print("T_vertical_step: ", T_vertical_step)
 
-      T_step = T_horizontal_step @ T_vertical @ T_rot_step
-      T_cumulative = T_cumulative @ T_step
-      T_target = T_start @ T_cumulative # get the target pose from the transformation matrix and the starting pose
-      targetPose_New = adpt_help.get_PoseStamped_from_T_initPose(T_target) # get the target pose from the transformation matrix and the current pose
-      print("T_target: ", T_target)
-      print("Target pose: ", targetPose_New)
+      # T_step = T_horizontal_step @ T_vertical @ T_rot_step
+      # T_cumulative = T_cumulative @ T_step
+      # T_target = T_start @ T_cumulative # get the target pose from the transformation matrix and the starting pose
+      # targetPose_New = adpt_help.get_PoseStamped_from_T_initPose(T_target, currentPose) # get the target pose from the transformation matrix and the current pose
+      # print("T_target: ", T_target)
+      # print("Target pose: ", targetPose_New)
 
-
-      # Does not consider motion strictly in the global frame, but rather in the local frame of the robot
       # both T_move and T_move2 work
-      T_move = T_horizontal_step @ T_rot_step # T_move = Translation * Rotation * Scaling
-      T_trans = T_horizontal_step @ T_vertical_step
-      print("T_trans: ", T_trans)
-      print("T_rot_step: ", T_rot_step)
-      T_move2 = T_trans @ T_rot_step # T_move = Translation * Rotation * Scaling
-      print("T_move2: ", T_move2)
+      #T_move = T_horizontal_step @ T_rot_step # T_move = Translation * Rotation * Scaling
+      # T_trans = T_horizontal_step @ T_vertical_step
+      T_trans2 = T_horizontal_step @ T_vertical 
+      # print("PREVIOUS T_trans: ", T_trans)
+      # print(" PROPOSED T_trans2: ", T_trans2)
+      #T_move2 = T_trans @ T_rot_step # T_move = Translation * Rotation * Scaling
+      T_move3 = T_trans2 @ T_rot_step # T_move = Translation * Rotation * Scaling
+      print("T_move3: ", T_move3)
 
-      # TODO: projecting back to the global frame
+      # ***********************************************************************************
+      # ***********************************************************************************
+      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move3, currentPose) # get the target pose from the transformation matrix and the current pose
+      rtde_help.goToPoseAdaptive(targetPose, time=2) # move to the target pose 
+      # ***********************************************************************************
+      # ***********************************************************************************
 
-      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move2, currentPose) # get the target pose from the transformation matrix and the current pose
-      rtde_help.goToPoseAdaptive(targetPose, time=2) # move to the target pose
-      
       currentPose = rtde_help.getCurrentPose() # get the current pose after the motion
       T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
       T_overall = np.linalg.inv(T_start) @ T_curr 
