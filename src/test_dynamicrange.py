@@ -43,6 +43,7 @@ import geometry_msgs.msg
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
+import test_config
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -73,8 +74,10 @@ def main(args):
   rospy.sleep(0.5)
   rtde_help = rtdeHelp(125)
   z_speed = 1e-6
-  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z = z_speed) # need to change d_z to change the speed of the robot
+  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z = test_config.RANGE_Z_SPEED) # need to change d_z to change the speed of the robot
   rospy.sleep(0.5)
+  rtde_help.setTCPoffset(test_config.VBTS_TCP_OFFSET)
+
 
   # Set up DIGIT frame subscriber
   bridge = CvBridge()
@@ -105,9 +108,9 @@ def main(args):
 
 
   # Set the pose A
-  positionA = [0.604, -0.170, 0.0223]   # for raised indenter
+  positionA = test_config.INDENTER_POS_A   # for raised indenter
   # positionA = [0.600, -0.140, 0.021]   # 0.04 for 3 metal plates and texture cube
-  orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2+np.pi/2,'sxyz') #static (s) rotating (r)
+  orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
   
 
@@ -144,7 +147,7 @@ def main(args):
     syncPub.publish(SYNC_START)
     while farFlag:
         # load
-        while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -20:
+        while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -test_config.RANGE_FORCE_THRESHOLD:
           T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
           targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
           rtde_help.goToPoseAdaptive(targetPose, time = 0.1)

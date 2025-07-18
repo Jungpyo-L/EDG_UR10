@@ -43,6 +43,7 @@ import geometry_msgs.msg
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
+import test_config
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -72,8 +73,9 @@ def main(args):
   file_help = fileSaveHelp()
   rospy.sleep(0.5)
   rtde_help = rtdeHelp(125)
-  adpt_help = adaptMotionHelp(d_w = 5e-5, d_lat = 1e-5, d_z= 2e-5) # need to change d_z to change the speed of the robot
+  adpt_help = adaptMotionHelp(d_w = 1,d_lat = test_config.SHEAR_LAT_SPEED, d_z = test_config.SHEAR_Z_SPEED) # need to change d_z to change the speed of the robot
   rospy.sleep(0.5)
+  rtde_help.setTCPoffset(test_config.VBTS_TCP_OFFSET)
 
   # Set up DIGIT frame subscriber
   bridge = CvBridge()
@@ -104,8 +106,7 @@ def main(args):
 
 
   # Set the pose A
-  positionA = [0.600, -0.140, 0.008]   # for 2 metal plates
-  # positionA = [0.600, -0.140, 0.021]   # 0.04 for 3 metal plates and texture cube
+  positionA = test_config.INDENTER_POS_A   # for raised indenter
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
   
@@ -143,12 +144,12 @@ def main(args):
     syncPub.publish(SYNC_START)
     while farFlag:
         # N cycles of loading/unloading
-        N_cycles = 10
+        N_cycles = test_config.SHEAR_CYCLES
         for i in range(N_cycles):
           print("Cycle: " + str(i+1) + " / " + str(N_cycles))
           # load
           print("load")
-          while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -20:
+          while targetPoseEngaged.pose.position.z > 0.02 and F_normal > -test_config.SHEAR_FORCE_THRESHOLD:
             T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
             targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
             rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
@@ -159,7 +160,7 @@ def main(args):
 
           # drag
           print("drag")
-          while abs(targetPoseEngaged.pose.position.x - positionA[0]) < 0.003: # move _ m
+          while abs(targetPoseEngaged.pose.position.x - positionA[0]) < test_config.SHEAR_LAT_DISTANCE: # move _ m
             T_move = adpt_help.get_Tmat_TranslateInY(direction = -1)
             targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
             rtde_help.goToPoseAdaptive(targetPose, time = 0.1)

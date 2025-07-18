@@ -1,0 +1,32 @@
+# save positions, speeds, etc
+
+# offset
+VBTS_TCP_OFFSET = [0, 0, 0.1225, 0, 0, 0]  # for raised indenter
+
+# positions
+INDENTER_POS_A = [0.623, -0.1878, 0.07]
+ABRASION_POS_A = [0.750, -0.2031, 0.129]
+GRATINGS_POS_A = [0.50385, -0.2377, 0.012]
+SENS_POS_A = [0.480, -0.230, 0.04]
+
+# speeds (m/s)
+COMPRESSION_Z_SPEED = 1e-4 # 5e-5
+SHEAR_Z_SPEED = 5e-5
+SHEAR_LAT_SPEED = 5e-5
+RANGE_Z_SPEED = 1e-6
+GRATINGS_Z_SPEED = 1e-6
+SENS_Z_SPEED = 1e-6
+
+# shear lateral distance
+SHEAR_LAT_DISTANCE = 0.003   # in m
+
+# force thresholds (N)
+COMPRESSION_FORCE_THRESHOLD = 15
+SHEAR_FORCE_THRESHOLD = 5
+RANGE_FORCE_THRESHOLD = 30
+GRATINGS_FORCE_THRESHOLD = 10
+SENS_FORCE_THRESHOLD = 10
+
+# cycles
+COMPRESSION_CYCLES = 200
+SHEAR_CYCLES = 5

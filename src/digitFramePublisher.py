@@ -11,7 +11,7 @@ def digitFramePublisher():
     rospy.init_node('digitFramePublisher', anonymous=True)
     pub = rospy.Publisher('digitFrame', Image, queue_size=1)
     
-    d = Digit("D20019")
+    d = Digit("D20085")
     d.connect()
 
     bridge = CvBridge()

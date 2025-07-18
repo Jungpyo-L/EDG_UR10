@@ -36,6 +36,7 @@ import geometry_msgs.msg
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
+import test_config
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -65,10 +66,9 @@ def main(args):
   file_help = fileSaveHelp(saveFrames=False)
   rospy.sleep(0.5)
   rtde_help = rtdeHelp(125)
-  z_speed = 1e-6
-  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z = z_speed) # need to change d_z to change the speed of the robot
+  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z = test_config.GRATINGS_Z_SPEED) # need to change d_z to change the speed of the robot
   rospy.sleep(0.5)
-  rtde_help.setTCPoffset([0, 0, 0.1225, 0, 0, 0])
+  rtde_help.setTCPoffset(test_config.VBTS_TCP_OFFSET)
 
   # Set up DIGIT frame subscriber
   bridge = CvBridge()
@@ -99,7 +99,7 @@ def main(args):
 
 
   # Set the pose A
-  positionA = [0.50385, -0.2377, 0.012]   # for gratings
+  positionA = test_config.GRATINGS_POS_A   # for gratings
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
 
@@ -148,7 +148,7 @@ def main(args):
     # targetPWM_Pub.publish(DUTYCYCLE_0)
     while farFlag:
       # load
-      while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -10:
+      while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -test_config.GRATINGS_FORCE_THRESHOLD:
         T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
         rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
