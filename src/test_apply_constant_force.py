@@ -38,6 +38,7 @@ from netft_utils.srv import *
 from suction_cup.srv import *
 from std_msgs.msg import String
 from std_msgs.msg import Int8
+from std_srvs.srv import SetBool
 import geometry_msgs.msg
 
 from sensor_msgs.msg import Image
@@ -79,22 +80,6 @@ def main(args):
   rtde_help.setTCPoffset(test_config.VBTS_TCP_OFFSET)
 
 
-  # Set up DIGIT frame subscriber
-  bridge = CvBridge()
-  digit_frames = []
-  record_digit = False
-
-  def digit_callback(msg):
-    if record_digit:
-        try:
-            frame = bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
-            digit_frames.append(frame)
-        except Exception as e:
-            print(f"Failed to convert image: {e}")
-
-  rospy.Subscriber("digitFrame", Image, digit_callback)
-
-
   # Set the synchronization Publisher
   syncPub = rospy.Publisher('sync', Int8, queue_size=1)
 
@@ -102,14 +87,17 @@ def main(args):
   rospy.wait_for_service('data_logging')
   dataLoggerEnable = rospy.ServiceProxy('data_logging', Enable)
   dataLoggerEnable(False) # reset Data Logger just in case
+  print("Wait for digit frame toggle service")
+  rospy.wait_for_service('toggle_digit_frame')
+  toggle_digit = rospy.ServiceProxy('toggle_digit_frame', SetBool)
   rospy.sleep(1)
   file_help.clearTmpFolder()        # clear the temporary folder
   datadir = file_help.ResultSavingDirectory
 
 
   # Set the pose A
-  # positionA = test_config.SENS_POS_A   # for sensitivity board
-  positionA = test_config.ABRASION_POS_A   # for abrasion test
+  positionA = test_config.SENS_POS_A   # for sensitivity board
+  # positionA = test_config.ABRASION_POS_A   # for abrasion test
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
   
@@ -130,16 +118,11 @@ def main(args):
     rospy.sleep(1)
    
     input("Press <Enter> to start to record data")
-    print("Recording noload data...")
     # start data logging with video recording. record 1 second of noload data
     record_digit = True
-    digit_frames.clear()
     dataLoggerEnable(True)
+    toggle_digit(True)
     syncPub.publish(SYNC_START)
-    rospy.sleep(1)
-    syncPub.publish(SYNC_STOP)
-    record_digit = False
-    dataLoggerEnable(False)
     rospy.sleep(0.2)
 
     # flags and variables
@@ -170,15 +153,7 @@ def main(args):
         F_normal = FT_help.averageFz_noOffset
 
         # record 1 second of data
-        print(f'Recording loaded data at {F_normal} N...')
-        record_digit = True
-        digit_frames.clear()
-        dataLoggerEnable(True)
-        syncPub.publish(SYNC_START)
-        rospy.sleep(1)
-        syncPub.publish(SYNC_STOP)
-        record_digit = False
-        dataLoggerEnable(False)
+        # print(f'Recording loaded data at {F_normal} N...')
 
         # change motor speed
         adpt_help.d_z_normal = 2e-5
@@ -204,7 +179,11 @@ def main(args):
         rospy.sleep(0.8)
 
     # stop data logging
-    rospy.sleep(0.5)
+    rospy.sleep(1)
+    print(f'Recording final data')
+    toggle_digit(False)
+    syncPub.publish(SYNC_STOP)
+    dataLoggerEnable(False)
 
     # back to pose A
     rtde_help.goToPose(poseA)

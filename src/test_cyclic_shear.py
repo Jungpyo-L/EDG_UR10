@@ -38,6 +38,7 @@ from netft_utils.srv import *
 from suction_cup.srv import *
 from std_msgs.msg import String
 from std_msgs.msg import Int8
+from std_srvs.srv import SetBool
 import geometry_msgs.msg
 
 from sensor_msgs.msg import Image
@@ -77,21 +78,6 @@ def main(args):
   rospy.sleep(0.5)
   rtde_help.setTCPoffset(test_config.VBTS_TCP_OFFSET)
 
-  # Set up DIGIT frame subscriber
-  bridge = CvBridge()
-  digit_frames = []
-  record_digit = False
-
-  def digit_callback(msg):
-    if record_digit:
-        try:
-            frame = bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
-            digit_frames.append(frame)
-        except Exception as e:
-            print(f"Failed to convert image: {e}")
-
-  rospy.Subscriber("digitFrame", Image, digit_callback)
-
 
   # Set the synchronization Publisher
   syncPub = rospy.Publisher('sync', Int8, queue_size=1)
@@ -100,6 +86,9 @@ def main(args):
   rospy.wait_for_service('data_logging')
   dataLoggerEnable = rospy.ServiceProxy('data_logging', Enable)
   dataLoggerEnable(False) # reset Data Logger just in case
+  print("Wait for digit frame toggle service")
+  rospy.wait_for_service('toggle_digit_frame')
+  toggle_digit = rospy.ServiceProxy('toggle_digit_frame', SetBool)
   rospy.sleep(1)
   file_help.clearTmpFolder()        # clear the temporary folder
   datadir = file_help.ResultSavingDirectory
@@ -129,9 +118,11 @@ def main(args):
     input("Press <Enter> to start to record data")
     # start data logging with video recording
     record_digit = True
-    digit_frames.clear()
     dataLoggerEnable(True)
-    rospy.sleep(0.2)
+    syncPub.publish(SYNC_START)
+    toggle_digit(True)
+    rospy.sleep(test_config.SAVE_PERIOD)
+    toggle_digit(False)
 
     # flags and variables
     
@@ -141,7 +132,6 @@ def main(args):
     targetPoseEngaged = rtde_help.getCurrentPose()
     targetPose = targetPoseEngaged  # Initialize targetPose
     # targetPWM_Pub.publish(DUTYCYCLE_0)
-    syncPub.publish(SYNC_START)
     while farFlag:
         # N cycles of loading/unloading
         N_cycles = test_config.SHEAR_CYCLES
@@ -169,7 +159,13 @@ def main(args):
             targetPoseEngaged = rtde_help.getCurrentPose()
             F_shear = FT_help.averageFy_noOffset
 
-          rospy.sleep(0.5)
+          rtde_help.stopAtCurrPoseAdaptive()
+          targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
+          rospy.sleep(0.3)
+
+          toggle_digit(True)
+          rospy.sleep(test_config.SAVE_PERIOD)
+          toggle_digit(False)
 
           # unload
           print("unload")
@@ -193,18 +189,28 @@ def main(args):
             targetPoseEngaged = rtde_help.getCurrentPose()
             F_normal = FT_help.averageFz_noOffset
 
+          rtde_help.stopAtCurrPoseAdaptive()
+          targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
+
+          rospy.sleep(0.5)
+          toggle_digit(True)
+          rospy.sleep(test_config.SAVE_PERIOD)
+          toggle_digit(False)
+
         farFlag = False
         rtde_help.stopAtCurrPoseAdaptive()
         print("reached threshhold normal force: ", F_normal)
         args.normalForceUsed= F_normal
         rospy.sleep(0.8)
-        syncPub.publish(SYNC_STOP)
-        rospy.sleep(0.2)
 
     # stop data logging
-    record_digit = False
+    rospy.sleep(1)
+    print(f'Recording final data')
+    toggle_digit(True)
+    rospy.sleep(test_config.SAVE_PERIOD)
+    toggle_digit(False)
+    syncPub.publish(SYNC_STOP)
     dataLoggerEnable(False)
-    rospy.sleep(0.5)
 
     # back to pose A
     rtde_help.goToPose(poseA)

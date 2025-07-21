@@ -14,6 +14,7 @@ import numbers
 import collections
 from operator import attrgetter
 from datetime import datetime
+from std_srvs.srv import SetBool, SetBoolResponse
 
 
 # Current state of logging
@@ -60,7 +61,13 @@ file_helper = fileSaveHelp()
 digit_image_buffer = []  # each entry: (rospy.Time, np.ndarray)
 digit_image_topic = "/digitFrame"  # update if your topic name is different
 
+save_digit_frames = False # Set to True to save frames
+
 def digit_image_callback(msg):
+    global save_digit_frames, isLoggingEnabled
+    if not save_digit_frames:
+        return
+    
     try:
         ros_time = msg.header.stamp
         img = bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
@@ -68,6 +75,13 @@ def digit_image_callback(msg):
     except Exception as e:
         rospy.logerr(f"[X] Failed to convert image in digit_image_callback: {e}")
     # Numeric topic logging (as-is)
+
+def toggle_digit_frame_service(req):
+    print('debug')
+    global save_digit_frames
+    save_digit_frames = req.data
+    rospy.loginfo("[✓] Request received to log Digit frames.")
+    return SetBoolResponse(success=True, message="Digit frame logging has been toggled.")
 
 
 def appendDataPoint(topic, msg):
@@ -374,5 +388,6 @@ if __name__ == '__main__':
 
     # Advertise the data_logging service
     service = rospy.Service('data_logging', Enable, setLoggingState)
+    digit_service = rospy.Service('toggle_digit_frame', SetBool, toggle_digit_frame_service)
 
     rospy.spin()

@@ -38,6 +38,7 @@ from netft_utils.srv import *
 from suction_cup.srv import *
 from std_msgs.msg import String
 from std_msgs.msg import Int8
+from std_srvs.srv import SetBool
 import geometry_msgs.msg
 
 from sensor_msgs.msg import Image
@@ -76,29 +77,17 @@ def main(args):
   adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z= base_z_speed) # need to change d_z to change the speed of the robot
   rospy.sleep(0.5)
 
-  # Set up DIGIT frame subscriber
-  bridge = CvBridge()
-  digit_frames = []
-  record_digit = False
-
-  def digit_callback(msg):
-    if record_digit:
-        try:
-            frame = bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
-            digit_frames.append(frame)
-        except Exception as e:
-            print(f"Failed to convert image: {e}")
-
-  rospy.Subscriber("digitFrame", Image, digit_callback)
-
 
   # Set the synchronization Publisher
   syncPub = rospy.Publisher('sync', Int8, queue_size=1)
 
   print("Wait for the data_logger to be enabled")
-  rospy.wait_for_service('data_logging')
+  rospy.wait_for_service('data_log`ging')
   dataLoggerEnable = rospy.ServiceProxy('data_logging', Enable)
   dataLoggerEnable(False) # reset Data Logger just in case
+  print("Wait for digit frame toggle service")
+  rospy.wait_for_service('toggle_digit_frame')
+  toggle_digit = rospy.ServiceProxy('toggle_digit_frame', SetBool)
   rospy.sleep(1)
   file_help.clearTmpFolder()        # clear the temporary folder
   datadir = file_help.ResultSavingDirectory
