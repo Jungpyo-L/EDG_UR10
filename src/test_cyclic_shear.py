@@ -148,9 +148,16 @@ def main(args):
             targetPoseEngaged = rtde_help.getCurrentPose()
             F_normal = FT_help.averageFz_noOffset
 
+          rtde_help.stopAtCurrPoseAdaptive()
+          targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
+          rospy.sleep(0.3)
+          # update shear force
+          F_shear = FT_help.averageFy_noOffset
+
           # drag
           print("drag")
-          while abs(targetPoseEngaged.pose.position.x - positionA[0]) < test_config.SHEAR_LAT_DISTANCE: # move _ m
+          # while abs(targetPoseEngaged.pose.position.x - positionA[0]) < test_config.SHEAR_LAT_DISTANCE: # move _ m
+          while abs(F_shear) < test_config.SHEAR_FORCE_THRESHOLD:
             T_move = adpt_help.get_Tmat_TranslateInY(direction = -1)
             targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
             rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
@@ -180,14 +187,21 @@ def main(args):
 
           # reset
           print("reset")
-          while targetPoseEngaged.pose.position.x > positionA[0]:
-            T_move = adpt_help.get_Tmat_TranslateInY(direction = 1)
-            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+          rtde_help.goToPose(poseA)
 
-            # new y pos
-            targetPoseEngaged = rtde_help.getCurrentPose()
-            F_normal = FT_help.averageFz_noOffset
+          # update position
+          targetPoseEngaged = rtde_help.getCurrentPose()
+          F_normal = FT_help.averageFz_noOffset
+          targetPose = targetPoseEngaged  # Update targetPose after unloading
+
+          # while targetPoseEngaged.pose.position.x > positionA[0]:
+          #   T_move = adpt_help.get_Tmat_TranslateInY(direction = 1)
+          #   targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
+          #   rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+
+          #   # new y pos
+          #   targetPoseEngaged = rtde_help.getCurrentPose()
+          #   F_normal = FT_help.averageFz_noOffset
 
           rtde_help.stopAtCurrPoseAdaptive()
           targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping

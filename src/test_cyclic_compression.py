@@ -161,19 +161,25 @@ def main(args):
           toggle_digit(False)
 
           # unload
-          while targetPoseEngaged.pose.position.z < positionA[2]:
-            T_move = adpt_help.get_Tmat_TranslateInZ(direction = -1)
-            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+          rtde_help.goToPose(poseA)
 
-            # new z height
-            targetPoseEngaged = rtde_help.getCurrentPose()
-            F_normal = FT_help.averageFz_noOffset
+          # update position
+          targetPoseEngaged = rtde_help.getCurrentPose()
+          F_normal = FT_help.averageFz_noOffset
+          targetPose = targetPoseEngaged  # Update targetPose after unloading
+          # while targetPoseEngaged.pose.position.z < positionA[2]:
+          #   T_move = adpt_help.get_Tmat_TranslateInZ(direction = -1)
+          #   targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
+          #   rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+
+          #   # new z height
+          #   targetPoseEngaged = rtde_help.getCurrentPose()
+          #   F_normal = FT_help.averageFz_noOffset
 
             # print(F_normal, FT_help.thisForce.force.z)
 
           # save some data after each cycle
-          rospy.sleep(0.1)
+          rospy.sleep(0.3)
           print(f'Recording data at cycle {i+1}...')
           toggle_digit(True)
           rospy.sleep(test_config.SAVE_PERIOD)
