@@ -124,6 +124,8 @@ def main(args):
     toggle_digit(True)
     syncPub.publish(SYNC_START)
     rospy.sleep(0.2)
+    toggle_digit(False)
+    rospy.sleep(0.2)
 
     # flags and variables
     
@@ -134,53 +136,63 @@ def main(args):
     targetPose = targetPoseEngaged  # Initialize targetPose
     # targetPWM_Pub.publish(DUTYCYCLE_0)
     while farFlag:
-        # load
-        while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -test_config.CONST_FORCE_THRESHOLD:
-          T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
-          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-          rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+        N = 4
+        for i in range(N):
+          input(f'press <Enter> to engage the digit sensor for {(i+1)*0.25} m')
+          # load
+          while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -test_config.CONST_FORCE_THRESHOLD:
+            T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
+            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
+            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
 
-          # new z height
-          targetPoseEngaged = rtde_help.getCurrentPose()
+            # new z height
+            targetPoseEngaged = rtde_help.getCurrentPose()
+            F_normal = FT_help.averageFz_noOffset
+
+            # print(F_normal, FT_help.thisForce.force.z)
+
+          # stop robot
+          rtde_help.stopAtCurrPoseAdaptive()
+          rospy.sleep(0.5)
+          targetPose = targetPoseEngaged # Update targetPose to the current pose
+
           F_normal = FT_help.averageFz_noOffset
 
-          # print(F_normal, FT_help.thisForce.force.z)
+          # change motor speed
+          adpt_help.d_z_normal = 5e-5
 
-        # stop robot
-        rtde_help.stopAtCurrPoseAdaptive()
-        rospy.sleep(0.5)
+          # record 1 second of data
+          input(f'press <Enter> after running abrasion test for {(i+1)*0.25} m...')
 
-        F_normal = FT_help.averageFz_noOffset
 
-        # record 1 second of data
-        # print(f'Recording loaded data at {F_normal} N...')
+          # unload
+          while targetPoseEngaged.pose.position.z < positionA[2]:
+            T_move = adpt_help.get_Tmat_TranslateInZ(direction = -1)
+            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
+            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
 
-        # change motor speed
-        adpt_help.d_z_normal = 2e-5
+            # new z height
+            targetPoseEngaged = rtde_help.getCurrentPose()
+            F_normal = FT_help.averageFz_noOffset
 
-        input('done recording, press <Enter> to unload')
+            # print(F_normal, FT_help.thisForce.force.z)
 
-        # unload
-        while targetPoseEngaged.pose.position.z < positionA[2]:
-          T_move = adpt_help.get_Tmat_TranslateInZ(direction = -1)
-          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-          rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
-
-          # new z height
-          targetPoseEngaged = rtde_help.getCurrentPose()
-          F_normal = FT_help.averageFz_noOffset
-
-          # print(F_normal, FT_help.thisForce.force.z)
-
-        farFlag = False
-        rtde_help.stopAtCurrPoseAdaptive()
-        print("reached threshhold normal force: ", F_normal)
-        args.normalForceUsed= F_normal
-        rospy.sleep(0.8)
+          farFlag = False
+          rtde_help.stopAtCurrPoseAdaptive()
+          targetPose = targetPoseEngaged # Update targetPose to the current pose
+          print("reached threshhold normal force: ", F_normal)
+          args.normalForceUsed= F_normal
+          rospy.sleep(0.8)
+          print("recording data...")
+          toggle_digit(True)
+          rospy.sleep(0.2)
+          toggle_digit(False)
 
     # stop data logging
     rospy.sleep(1)
     print(f'Recording final data')
+    toggle_digit(True)
+    rospy.sleep(0.2)
     toggle_digit(False)
     syncPub.publish(SYNC_STOP)
     dataLoggerEnable(False)
