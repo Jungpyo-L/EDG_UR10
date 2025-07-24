@@ -13,6 +13,8 @@
 # Date: May.08.2025
 # This script is updated to include robot motion (move to A, and adaptive motion, and back to A)
 
+# asdf
+
 # imports
 try:
   import rospy
