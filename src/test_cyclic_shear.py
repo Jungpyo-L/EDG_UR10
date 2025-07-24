@@ -139,7 +139,7 @@ def main(args):
           print("Cycle: " + str(i+1) + " / " + str(N_cycles))
           # load
           print("load")
-          while targetPoseEngaged.pose.position.z > 0.02 and F_normal > -test_config.SHEAR_FORCE_THRESHOLD:
+          while targetPoseEngaged.pose.position.z > 0.02 and F_normal > -test_config.SHEAR_FORCE_Z_THRESHOLD:
             T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
             targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
             rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
@@ -157,7 +157,8 @@ def main(args):
           # drag
           print("drag")
           # while abs(targetPoseEngaged.pose.position.x - positionA[0]) < test_config.SHEAR_LAT_DISTANCE: # move _ m
-          while abs(F_shear) < test_config.SHEAR_FORCE_THRESHOLD:
+          while (abs(F_shear) < test_config.SHEAR_FORCE_Y_THRESHOLD and
+                 abs(targetPoseEngaged.pose.position.x - positionA[0]) < test_config.SHEAR_LAT_DISTANCE):
             T_move = adpt_help.get_Tmat_TranslateInY(direction = -1)
             targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
             rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
@@ -184,6 +185,10 @@ def main(args):
             # new z height
             targetPoseEngaged = rtde_help.getCurrentPose()
             F_shear = FT_help.averageFy_noOffset
+
+
+          rtde_help.stopAtCurrPoseAdaptive()
+          targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
 
           # reset
           print("reset")

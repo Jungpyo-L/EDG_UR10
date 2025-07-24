@@ -96,8 +96,8 @@ def main(args):
 
 
   # Set the pose A
-  positionA = test_config.SENS_POS_A   # for sensitivity board
-  # positionA = test_config.ABRASION_POS_A   # for abrasion test
+  # positionA = test_config.SENS_POS_A   # for sensitivity board
+  positionA = test_config.ABRASION_POS_A   # for abrasion test
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
   
@@ -135,7 +135,7 @@ def main(args):
     # targetPWM_Pub.publish(DUTYCYCLE_0)
     while farFlag:
         # load
-        while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -test_config.SENS_FORCE_THRESHOLD:
+        while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -test_config.CONST_FORCE_THRESHOLD:
           T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
           targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
           rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
