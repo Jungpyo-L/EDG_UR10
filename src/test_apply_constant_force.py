@@ -100,8 +100,10 @@ def main(args):
   # Set the pose A
   # positionA = test_config.SENS_POS_A   # for sensitivity board
   positionA = test_config.ABRASION_POS_A   # for abrasion test
+  positionB = test_config.ABRASION_POS_B   # for abrasion test, this is to move over light
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
+  poseB = rtde_help.getPoseObj(positionB, orientationA) # for abrasion test, this is to move over light
   
 
   # try block so that we can have a keyboard exception
@@ -128,6 +130,15 @@ def main(args):
     rospy.sleep(0.2)
     toggle_digit(False)
     rospy.sleep(0.2)
+
+    # turn off LED and move to pos B
+    rtde_help.goToPose(poseB)
+    input("turn of LED and press <Enter> to record data")
+    rospy.sleep(0.2)
+    toggle_digit(True)
+    rospy.sleep(0.2)
+    toggle_digit(False)
+
 
     # flags and variables
     

@@ -6,6 +6,7 @@ VBTS_TCP_OFFSET = [0, 0, 0.1225, 0, 0, 0]  # for raised indenter
 # positions
 INDENTER_POS_A = [0.600, -0.187, 0.067]
 ABRASION_POS_A = [0.750, -0.2031, 0.129]
+ABRASION_POS_B = [0.750, -0.16, 0.129]
 GRATINGS_POS_A = [0.50385, -0.2377, 0.012]
 SENS_POS_A = [0.480, -0.260, 0.032]
 

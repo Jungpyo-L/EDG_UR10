@@ -3,6 +3,7 @@
 import rospy
 import numpy as np
 import cv2
+import time
 from sensor_msgs.msg import Image
 from digit_interface import Digit
 from cv_bridge import CvBridge
@@ -11,8 +12,10 @@ def digitFramePublisher():
     rospy.init_node('digitFramePublisher', anonymous=True)
     pub = rospy.Publisher('digitFrame', Image, queue_size=1)
     
-    d = Digit("D20085")
+    d = Digit("D20019")
     d.connect()
+    print("supported streams: \n {}".format(Digit.STREAMS))
+    d.set_resolution(Digit.STREAMS['QVGA'])
 
     bridge = CvBridge()
     rate = rospy.Rate(30)
@@ -21,6 +24,7 @@ def digitFramePublisher():
     show_delta = False  # Flag to control delta display
     amplify = False # flag to control amplification of delta display
     greyscale = False  # Flag to control grayscale display
+    LED_on = True  # Flag to control LED state
 
     while not rospy.is_shutdown():
         try:
@@ -59,6 +63,35 @@ def digitFramePublisher():
             elif key == ord('g'):
                 print("toggling grayscale display")
                 greyscale = not greyscale
+
+            elif key == ord('l'):
+                print("LED toggle")
+                try:
+                    if LED_on:
+                        # for i in range(15):
+                        #     d.set_intensity(14-i)
+                        #     time.sleep(0.05)
+                        d.set_intensity(Digit.LIGHTING_MIN)
+                    else:
+                        d.set_intensity_rgb(15, 15, 15)
+
+
+                    time.sleep(.2)
+                except Exception as e:
+                    print(f"Error toggling LED: {e}")
+                    continue
+
+                d.disconnect()
+                time.sleep(0.2)
+                d.connect(LED_intensity=Digit.LIGHTING_MAX if LED_on else Digit.LIGHTING_MIN)
+
+
+                LED_on = not LED_on
+
+                # burn through next few readings
+                for i in range(5):
+                    d.get_frame()
+
 
             # Show the image in a window
             if show_delta:
