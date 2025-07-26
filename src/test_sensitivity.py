@@ -98,13 +98,9 @@ def main(args):
 
 
   # Set the pose A
-  # positionA = test_config.SENS_POS_A   # for sensitivity board
-  positionA = test_config.ABRASION_POS_A   # for abrasion test
-  positionB = test_config.ABRASION_POS_B   # for abrasion test, this is to move over light
+  positionA = test_config.SENS_POS_A   # for sensitivity board
   orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
-  poseA = rtde_help.getPoseObj(positionA, orientationA)
-  poseB = rtde_help.getPoseObj(positionB, orientationA) # for abrasion test, this is to move over light
-  
+  poseA = rtde_help.getPoseObj(positionA, orientationA)  
 
   # try block so that we can have a keyboard exception
   try:
@@ -131,15 +127,6 @@ def main(args):
     toggle_digit(False)
     rospy.sleep(0.2)
 
-    # turn off LED and move to pos B
-    rtde_help.goToPose(poseB)
-    input("turn of LED and press <Enter> to record data")
-    rospy.sleep(0.2)
-    toggle_digit(True)
-    rospy.sleep(0.2)
-    toggle_digit(False)
-
-
     # flags and variables
     
     farFlag = True
@@ -149,11 +136,11 @@ def main(args):
     targetPose = targetPoseEngaged  # Initialize targetPose
     # targetPWM_Pub.publish(DUTYCYCLE_0)
     while farFlag:
-        N = 4
+        N = 1
         for i in range(N):
           input(f'press <Enter> to engage the digit sensor for {(i+1)*0.25} m')
           # load
-          while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -test_config.CONST_FORCE_THRESHOLD:
+          while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -test_config.SENS_FORCE_THRESHOLD:
             T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
             targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
             rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
@@ -171,11 +158,14 @@ def main(args):
 
           F_normal = FT_help.averageFz_noOffset
 
+          # record loaded data
+          print("recording loaded data...")
+          toggle_digit(True)
+          rospy.sleep(0.2)
+          toggle_digit(False)
+
           # change motor speed
           adpt_help.d_z_normal = 5e-5
-
-          # record 1 second of data
-          input(f'press <Enter> after running abrasion test for {(i+1)*0.25} m...')
 
 
           # unload
@@ -203,10 +193,6 @@ def main(args):
 
     # stop data logging
     rospy.sleep(1)
-    print(f'Recording final data')
-    toggle_digit(True)
-    rospy.sleep(0.2)
-    toggle_digit(False)
     syncPub.publish(SYNC_STOP)
     dataLoggerEnable(False)
 
