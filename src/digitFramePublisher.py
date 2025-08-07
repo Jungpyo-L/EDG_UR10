@@ -12,9 +12,9 @@ def digitFramePublisher():
     rospy.init_node('digitFramePublisher', anonymous=True)
     pub = rospy.Publisher('digitFrame', Image, queue_size=1)
     
-    d = Digit("D20085")
+    d = Digit("D20019")
     d.connect()
-    print("supported streams: \n {}".format(Digit.STREAMS))
+    # print("supported streams: \n {}".format(Digit.STREAMS))
     d.set_resolution(Digit.STREAMS['QVGA'])
 
     bridge = CvBridge()
