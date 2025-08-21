@@ -4,6 +4,7 @@
 import sys
 import os
 import rospy
+import numpy as np
 import rosgraph
 import time
 from roslib.message import get_message_class
@@ -15,7 +16,7 @@ import collections
 from operator import attrgetter
 from datetime import datetime
 from std_srvs.srv import SetBool, SetBoolResponse
-
+import test_config
 
 # Current state of logging
 isLoggingEnabled = False
@@ -64,7 +65,7 @@ digit_image_topic = "/digitFrame"  # update if your topic name is different
 save_digit_frames = False # Set to True to save frames
 
 def digit_image_callback(msg):
-    global save_digit_frames, isLoggingEnabled
+    global save_digit_frames
     if not save_digit_frames:
         return
     
@@ -82,6 +83,33 @@ def toggle_digit_frame_service(req):
     save_digit_frames = req.data
     rospy.loginfo("[✓] Request received to log Digit frames.")
     return SetBoolResponse(success=True, message="Digit frame logging has been toggled.")
+
+def capture_digit_image_service(req):
+    # this service captures a "single frame" average from DIGIT sensor
+    try:
+        imgs = []
+        times = []
+        for i in range(test_config.SAVE_FRAMES):
+            msg = rospy.wait_for_message("/digitFrame", Image, timeout=2.0)
+            ros_time = msg.header.stamp
+            img = bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+            imgs.append(img)
+            times.append(ros_time.to_sec())
+        # Average the images
+        if imgs:
+            avg_img = np.mean(np.array(imgs), axis=0).astype(np.uint8)
+            avg_time = np.mean(times)
+        else:
+            rospy.logwarn("[X] No images captured from DIGIT sensor.")
+            return SetBoolResponse(success=False, message="No images captured.")
+
+        digit_image_buffer.append((avg_time, avg_img))
+        rospy.loginfo("[✓] Digit image captured successfully.")
+        return SetBoolResponse(success=True, message="Image captured successfully.")
+    except rospy.ROSException:
+        return SetBoolResponse(success=False, message="Timed out waiting forimage from DIGIT sensor.")
+    except Exception as e:
+        return SetBoolResponse(success=False, message=f"Unexpected error: {e}")
 
 
 def appendDataPoint(topic, msg):
@@ -388,6 +416,6 @@ if __name__ == '__main__':
 
     # Advertise the data_logging service
     service = rospy.Service('data_logging', Enable, setLoggingState)
-    digit_service = rospy.Service('toggle_digit_frame', SetBool, toggle_digit_frame_service)
+    digit_service = rospy.Service('capture_digit_frame', SetBool, capture_digit_image_service)
 
     rospy.spin()

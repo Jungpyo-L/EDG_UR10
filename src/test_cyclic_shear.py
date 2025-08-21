@@ -87,16 +87,25 @@ def main(args):
   dataLoggerEnable = rospy.ServiceProxy('data_logging', Enable)
   dataLoggerEnable(False) # reset Data Logger just in case
   print("Wait for digit frame toggle service")
-  rospy.wait_for_service('toggle_digit_frame')
-  toggle_digit = rospy.ServiceProxy('toggle_digit_frame', SetBool)
+  rospy.wait_for_service('capture_digit_frame')
+  capture_digit = rospy.ServiceProxy('capture_digit_frame', SetBool)
   rospy.sleep(1)
   file_help.clearTmpFolder()        # clear the temporary folder
   datadir = file_help.ResultSavingDirectory
 
+  
 
   # Set the pose A
-  positionA = test_config.INDENTER_POS_A   # for raised indenter
-  orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
+  if args.surface == 'flat':
+    positionA = test_config.FLAT_POS_A   # for flat surface
+    orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz')
+    y_force = test_config.SHEAR_FORCE_Y_THRESHOLD_FLAT
+    z_force = test_config.SHEAR_FORCE_Z_THRESHOLD_FLAT
+  else:
+    positionA = test_config.INDENTER_POS_A
+    orientationA = tf.transformations.quaternion_from_euler(np.pi,0,0,'sxyz') #static (s) rotating (r)
+    y_force = test_config.SHEAR_FORCE_Y_THRESHOLD
+    z_force = test_config.SHEAR_FORCE_Z_THRESHOLD
   poseA = rtde_help.getPoseObj(positionA, orientationA)
   
 
@@ -120,9 +129,7 @@ def main(args):
     record_digit = True
     dataLoggerEnable(True)
     syncPub.publish(SYNC_START)
-    toggle_digit(True)
-    rospy.sleep(test_config.SAVE_PERIOD)
-    toggle_digit(False)
+    save_frames(capture_digit)
 
     # flags and variables
     
@@ -139,7 +146,7 @@ def main(args):
           print("Cycle: " + str(i+1) + " / " + str(N_cycles))
           # load
           print("load")
-          while targetPoseEngaged.pose.position.z > 0.02 and F_normal > -test_config.SHEAR_FORCE_Z_THRESHOLD:
+          while targetPoseEngaged.pose.position.z > 0.005 and F_normal > -z_force:
             T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
             targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
             rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
@@ -150,30 +157,34 @@ def main(args):
 
           rtde_help.stopAtCurrPoseAdaptive()
           targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
-          rospy.sleep(0.3)
+          rospy.sleep(0.2)
           # update shear force
-          F_shear = FT_help.averageFy_noOffset
+          F_shear = FT_help.averageFy_noOffset if args.surface == 'flat' else FT_help.averageFx_noOffset
 
           # drag
           print("drag")
           # while abs(targetPoseEngaged.pose.position.x - positionA[0]) < test_config.SHEAR_LAT_DISTANCE: # move _ m
-          while (abs(F_shear) < test_config.SHEAR_FORCE_Y_THRESHOLD and
+          while (abs(F_shear) < y_force and
                  abs(targetPoseEngaged.pose.position.x - positionA[0]) < test_config.SHEAR_LAT_DISTANCE):
-            T_move = adpt_help.get_Tmat_TranslateInY(direction = -1)
+            T_move = adpt_help.get_Tmat_TranslateInY(direction = 1) if args.surface == 'flat' else adpt_help.get_Tmat_TranslateInX(direction = -1)
             targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
             rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
 
             # new y pos
             targetPoseEngaged = rtde_help.getCurrentPose()
-            F_shear = FT_help.averageFy_noOffset
+            F_shear = FT_help.averageFy_noOffset if args.surface == 'flat' else FT_help.averageFx_noOffset
+
+          # print which condition is met
+          if abs(F_shear) >= y_force:
+            print("Reached shear force threshold: ", F_shear)
+          elif abs(targetPoseEngaged.pose.position.x - positionA[0]) >= test_config.SHEAR_LAT_DISTANCE:
+            print("Reached shear lateral distance: ", targetPoseEngaged.pose.position.x - positionA[0])
 
           rtde_help.stopAtCurrPoseAdaptive()
           targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
-          rospy.sleep(0.3)
+          rospy.sleep(0.2)
 
-          toggle_digit(True)
-          rospy.sleep(test_config.SAVE_PERIOD)
-          toggle_digit(False)
+          save_frames(capture_digit)
 
           # unload
           print("unload")
@@ -184,7 +195,7 @@ def main(args):
 
             # new z height
             targetPoseEngaged = rtde_help.getCurrentPose()
-            F_shear = FT_help.averageFy_noOffset
+            F_shear = FT_help.averageFy_noOffset if args.surface == 'flat' else FT_help.averageFx_noOffset
 
 
           rtde_help.stopAtCurrPoseAdaptive()
@@ -199,35 +210,23 @@ def main(args):
           F_normal = FT_help.averageFz_noOffset
           targetPose = targetPoseEngaged  # Update targetPose after unloading
 
-          # while targetPoseEngaged.pose.position.x > positionA[0]:
-          #   T_move = adpt_help.get_Tmat_TranslateInY(direction = 1)
-          #   targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-          #   rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
-
-          #   # new y pos
-          #   targetPoseEngaged = rtde_help.getCurrentPose()
-          #   F_normal = FT_help.averageFz_noOffset
-
           rtde_help.stopAtCurrPoseAdaptive()
           targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
 
-          rospy.sleep(0.5)
-          toggle_digit(True)
-          rospy.sleep(test_config.SAVE_PERIOD)
-          toggle_digit(False)
+          rospy.sleep(0.1)
+          save_frames(capture_digit)
 
         farFlag = False
         rtde_help.stopAtCurrPoseAdaptive()
         print("reached threshhold normal force: ", F_normal)
         args.normalForceUsed= F_normal
-        rospy.sleep(0.8)
+        rospy.sleep(0.1)
 
     # stop data logging
-    rospy.sleep(1)
-    print(f'Recording final data')
-    toggle_digit(True)
-    rospy.sleep(test_config.SAVE_PERIOD)
-    toggle_digit(False)
+    rospy.sleep(.2)
+    # print(f'Recording final data')
+    # save_frames(capture_digit)
+    # rospy.sleep(test_config.SAVE_PERIOD)
     syncPub.publish(SYNC_STOP)
     dataLoggerEnable(False)
 
@@ -245,6 +244,11 @@ def main(args):
     return
   except KeyboardInterrupt:
     return  
+  
+# function for saving certain number of frames
+def save_frames(capture_digit, wait_time=test_config.SAVE_PERIOD):
+    capture_digit(True)
+    rospy.sleep(wait_time)  # Wait for the specified save period
 
 
 if __name__ == '__main__':  
@@ -253,6 +257,7 @@ if __name__ == '__main__':
   parser.add_argument('--int', type=int, help='argument for int type', default= 100)
   parser.add_argument('--str', type=str, help='argument for str type', default= "string")
   parser.add_argument('--bool', type=bool, help='argument for bool type', default= True)
+  parser.add_argument('--surface', type=str, help='surface type', default='indenter')
 
   args = parser.parse_args()    
   main(args)

@@ -64,7 +64,7 @@ def main(args):
   # Setup helper functions
   FT_help = FT_CallbackHelp() # it deals with subscription.
   rospy.sleep(0.5)
-  file_help = fileSaveHelp(saveFrames=False)
+  file_help = fileSaveHelp(saveFrames=True)
   rospy.sleep(0.5)
   rtde_help = rtdeHelp(125)
   adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z = test_config.GRATINGS_Z_SPEED) # need to change d_z to change the speed of the robot
@@ -75,12 +75,12 @@ def main(args):
   syncPub = rospy.Publisher('sync', Int8, queue_size=1)
 
   print("Wait for the data_logger to be enabled")
-  rospy.wait_for_service('data_log`ging')
+  rospy.wait_for_service('data_logging')
   dataLoggerEnable = rospy.ServiceProxy('data_logging', Enable)
   dataLoggerEnable(False) # reset Data Logger just in case
   print("Wait for digit frame toggle service")
-  rospy.wait_for_service('toggle_digit_frame')
-  toggle_digit = rospy.ServiceProxy('toggle_digit_frame', SetBool)
+  rospy.wait_for_service('capture_digit_frame')
+  capture_digit = rospy.ServiceProxy('capture_digit_frame', SetBool)
   rospy.sleep(1)
   file_help.clearTmpFolder()        # clear the temporary folder
   datadir = file_help.ResultSavingDirectory
@@ -88,7 +88,7 @@ def main(args):
 
   # Set the pose A
   positionA = test_config.GRATINGS_POS_A   # for gratings
-  orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
+  orientationA = tf.transformations.quaternion_from_euler(np.pi+0.012,0.012,-np.pi/2,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
 
   # pose B is loaded pose
@@ -113,14 +113,11 @@ def main(args):
    
     input("Press <Enter> to start to record data")
     print("Recording noload data...")
-    # start data logging with video recording. record 1 second of noload data
+    # start data logging with video recording
     dataLoggerEnable(True)
+    save_frames(capture_digit)
     syncPub.publish(SYNC_START)
-    toggle_digit(True)
-    rospy.sleep(1)
-    toggle_digit(False)
-    syncPub.publish(SYNC_STOP)
-    dataLoggerEnable(False)
+    rospy.sleep(test_config.SAVE_PERIOD)
     rospy.sleep(0.2)
 
     print("loading...")
@@ -153,30 +150,27 @@ def main(args):
       print("current normal force: ", F_normal)
       farFlag = False
       rtde_help.stopAtCurrPoseAdaptive()
+      targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
       rospy.sleep(1)
       print("reached threshhold normal force: ", F_normal)
       args.normalForceUsed= F_normal
       rospy.sleep(0.8)
 
     # go to pose B
-    print("Going to pose B")
-    rtde_help.goToPose(poseB)
-    rospy.sleep(1)
+    # print("Going to pose B")
+    # rtde_help.goToPose(poseB)
+    # rospy.sleep(1)
 
     # now log 1 second of loaded data
     print("Recording loaded data...")
-    dataLoggerEnable(True)
-    syncPub.publish(SYNC_START)
-    toggle_digit(True)
-    rospy.sleep(1)
-    toggle_digit(False)
+    save_frames(capture_digit)
     syncPub.publish(SYNC_STOP)
     dataLoggerEnable(False)
-    rospy.sleep(1)
+    rospy.sleep(.5)
         
     # back to pose A
     rtde_help.goToPose(poseA)
-    rospy.sleep(.5)
+    rospy.sleep(.1)
 
 
     # # save data and clear the temporary folder
@@ -188,6 +182,11 @@ def main(args):
     return
   except KeyboardInterrupt:
     return  
+
+# function for saving certain number of frames
+def save_frames(capture_digit, wait_time=test_config.SAVE_PERIOD):
+  capture_digit(True)
+  rospy.sleep(wait_time)  # Wait for the specified save period
 
 
 if __name__ == '__main__':  

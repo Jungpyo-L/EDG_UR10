@@ -90,8 +90,8 @@ def main(args):
   dataLoggerEnable = rospy.ServiceProxy('data_logging', Enable)
   dataLoggerEnable(False) # reset Data Logger just in case
   print("Wait for digit frame toggle service")
-  rospy.wait_for_service('toggle_digit_frame')
-  toggle_digit = rospy.ServiceProxy('toggle_digit_frame', SetBool)
+  rospy.wait_for_service('capture_digit_frame')
+  capture_digit = rospy.ServiceProxy('capture_digit_frame', SetBool)
   rospy.sleep(1)
   file_help.clearTmpFolder()        # clear the temporary folder
   datadir = file_help.ResultSavingDirectory
@@ -100,7 +100,7 @@ def main(args):
   # Set the pose A
   positionA = test_config.ABRASION_POS_A   # for abrasion test
   positionB = test_config.ABRASION_POS_B   # for abrasion test, this is to move over light
-  orientationA = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2,'sxyz') #static (s) rotating (r)
+  orientationA = tf.transformations.quaternion_from_euler(np.pi,0,0,'sxyz') #static (s) rotating (r)
   poseA = rtde_help.getPoseObj(positionA, orientationA)
   poseB = rtde_help.getPoseObj(positionB, orientationA) # for abrasion test, this is to move over light
   
@@ -124,22 +124,18 @@ def main(args):
     # start data logging with video recording. record 1 second of noload data
     record_digit = True
     dataLoggerEnable(True)
-    toggle_digit(True)
+    save_frames(capture_digit)
     syncPub.publish(SYNC_START)
-    rospy.sleep(0.2)
-    toggle_digit(False)
     rospy.sleep(0.2)
 
     # turn off LED and move to pos B
     rtde_help.goToPose(poseB)
     input("Turn off LED and press <Enter> to record data")
-    rospy.sleep(0.2)
-    toggle_digit(True)
-    rospy.sleep(0.2)
-    toggle_digit(False)
+    rospy.sleep(0.1)
+    save_frames(capture_digit)
 
     # back to pose A to prepare for abrasion test
-    rospy.sleep(0.2)
+    rospy.sleep(0.1)
     rtde_help.goToPose(poseA)
 
 
@@ -152,7 +148,7 @@ def main(args):
     targetPose = targetPoseEngaged  # Initialize targetPose
     # targetPWM_Pub.publish(DUTYCYCLE_0)
     while farFlag:
-        N = 4
+        N = test_config.ABRASION_CYCLES
         for i in range(N):
           input(f'cycle {i+1}: press <Enter> to engage the digit sensor')
           # load
@@ -180,19 +176,15 @@ def main(args):
 
           # record data
           print('recording LED on data...')
-          toggle_digit(True)
-          rospy.sleep(0.2)
-          toggle_digit(False)
-          rospy.sleep(0.5)
+          save_frames(capture_digit)
+          rospy.sleep(0.1)
 
           # move to pose B
           rtde_help.goToPose(poseB)
 
           input('press <Enter> after turning off LED...')
           print('recording LED off data...')
-          toggle_digit(True)
-          rospy.sleep(0.2)
-          toggle_digit(False)
+          save_frames(capture_digit)
 
           rospy.sleep(0.2)
 
@@ -213,7 +205,7 @@ def main(args):
 
     # back to pose A
     rtde_help.goToPose(poseA)
-    rospy.sleep(1)
+    rospy.sleep(.1)
 
 
     # # save data and clear the temporary folder
@@ -225,7 +217,11 @@ def main(args):
     return
   except KeyboardInterrupt:
     return  
-
+  
+# function for saving certain number of frames
+def save_frames(capture_digit, wait_time=test_config.SAVE_PERIOD):
+    capture_digit(True)
+    rospy.sleep(wait_time)  # Wait for the specified save period
 
 if __name__ == '__main__':  
   import argparse

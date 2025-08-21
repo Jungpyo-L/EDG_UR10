@@ -87,8 +87,8 @@ def main(args):
   dataLoggerEnable = rospy.ServiceProxy('data_logging', Enable)
   dataLoggerEnable(False) # reset Data Logger just in case
   print("Wait for digit frame toggle service")
-  rospy.wait_for_service('toggle_digit_frame')
-  toggle_digit = rospy.ServiceProxy('toggle_digit_frame', SetBool)
+  rospy.wait_for_service('capture_digit_frame')
+  capture_digit = rospy.ServiceProxy('capture_digit_frame', SetBool)
   rospy.sleep(1)
   file_help.clearTmpFolder()        # clear the temporary folder
   datadir = file_help.ResultSavingDirectory
@@ -118,13 +118,10 @@ def main(args):
    
     input("Press <Enter> to start to record data")
     # start data logging with video recording
-    record_digit_frame = True
     dataLoggerEnable(True)
-    toggle_digit(True)
+    save_frames(capture_digit)
     syncPub.publish(SYNC_START)
     rospy.sleep(test_config.SAVE_PERIOD)
-    toggle_digit(False)
-
     # flags and variables
     
     farFlag = True
@@ -153,17 +150,18 @@ def main(args):
           # stop robot
           rtde_help.stopAtCurrPoseAdaptive()
           targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
-          rospy.sleep(0.3)
+          rospy.sleep(0.2)
 
           print("current normal force: ", F_normal)
-          toggle_digit(True)
+          save_frames(capture_digit)
           rospy.sleep(test_config.SAVE_PERIOD)
-          toggle_digit(False)
 
           # unload
           rtde_help.goToPose(poseA)
 
           rtde_help.stopAtCurrPoseAdaptive()
+
+          rospy.sleep(0.1)
 
           # update position
           targetPoseEngaged = rtde_help.getCurrentPose()
@@ -171,22 +169,20 @@ def main(args):
           targetPose = targetPoseEngaged  # Update targetPose after unloading
 
           # save some data after each cycle
-          rospy.sleep(0.3)
+          rospy.sleep(0.1)
           print(f'Recording data at cycle {i+1}...')
-          toggle_digit(True)
+          save_frames(capture_digit)
           rospy.sleep(test_config.SAVE_PERIOD)
-          toggle_digit(False)
 
         farFlag = False
         rtde_help.stopAtCurrPoseAdaptive()
         args.normalForceUsed= F_normal
-        rospy.sleep(0.8)
+        rospy.sleep(0.01)
 
-    rospy.sleep(1)
-    print(f'Recording final data')
-    toggle_digit(True)
-    rospy.sleep(test_config.SAVE_PERIOD)
-    toggle_digit(False)
+    rospy.sleep(.1)
+    # print(f'Recording final data')
+    # save_frames(capture_digit)
+    # rospy.sleep(test_config.SAVE_PERIOD)
     syncPub.publish(SYNC_STOP)
     dataLoggerEnable(False)
 
@@ -204,6 +200,12 @@ def main(args):
     return
   except KeyboardInterrupt:
     return  
+  
+
+# function for saving certain number of frames
+def save_frames(capture_digit, wait_time=test_config.SAVE_PERIOD):
+  capture_digit(True)
+  rospy.sleep(wait_time)  # Wait for the specified save period
 
 
 if __name__ == '__main__':  
