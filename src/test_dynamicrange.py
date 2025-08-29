@@ -74,7 +74,6 @@ def main(args):
   file_help = fileSaveHelp(saveFrames=True)
   rospy.sleep(0.5)
   rtde_help = rtdeHelp(125)
-  z_speed = 1e-6
   adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z = test_config.RANGE_Z_SPEED) # need to change d_z to change the speed of the robot
   rospy.sleep(0.5)
   rtde_help.setTCPoffset(test_config.VBTS_TCP_OFFSET)
@@ -84,10 +83,12 @@ def main(args):
   syncPub = rospy.Publisher('sync', Int8, queue_size=1)
 
   print("Wait for the data_logger to be enabled")
-  rospy.wait_for_service('data_log`ging')
+  rospy.wait_for_service('data_logging')
   dataLoggerEnable = rospy.ServiceProxy('data_logging', Enable)
   dataLoggerEnable(False) # reset Data Logger just in case
   print("Wait for digit frame toggle service")
+  rospy.wait_for_service('capture_digit_frame')
+  capture_digit = rospy.ServiceProxy('capture_digit_frame', SetBool)
   rospy.wait_for_service('toggle_digit_frame')
   toggle_digit = rospy.ServiceProxy('toggle_digit_frame', SetBool)
   rospy.sleep(1)
@@ -119,11 +120,10 @@ def main(args):
    
     input("Press <Enter> to start to record data")
     # start data logging with video recording
-    record_digit = True
-    digit_frames.clear()
     dataLoggerEnable(True)
-    rospy.sleep(0.2)
-
+    syncPub.publish(SYNC_START)
+    toggle_digit(True)
+    rospy.sleep(test_config.SAVE_PERIOD)
     # flags and variables
     
     farFlag = True
@@ -132,49 +132,59 @@ def main(args):
     targetPoseEngaged = rtde_help.getCurrentPose()
     targetPose = targetPoseEngaged  # Initialize targetPose
     # targetPWM_Pub.publish(DUTYCYCLE_0)
-    syncPub.publish(SYNC_START)
     while farFlag:
-        # load
-        while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -test_config.RANGE_FORCE_THRESHOLD:
-          T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
-          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-          rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+        # N cycles of loading/unloading. only 1 for now
+        N_cycles = 1
+        for i in range(N_cycles):
+          print("Cycle: " + str(i+1) + " / " + str(N_cycles))
+          # load
+          while targetPoseEngaged.pose.position.z > 0.00 and F_normal > -test_config.RANGE_FORCE_THRESHOLD:
+            T_move = adpt_help.get_Tmat_TranslateInZ(direction = 1)
+            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
+            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
 
-          # new z height
+            # new z height
+            targetPoseEngaged = rtde_help.getCurrentPose()
+            F_normal = FT_help.averageFz_noOffset
+
+            # print(F_normal, FT_help.thisForce.force.z)
+
+          # stop robot
+          rtde_help.stopAtCurrPoseAdaptive()
+          targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
+          rospy.sleep(0.2)
+
+          print("current normal force: ", F_normal)
+          rospy.sleep(test_config.SAVE_PERIOD)
+
+          # unload
+          while targetPoseEngaged.pose.position.z < positionA[2]:
+            T_move = adpt_help.get_Tmat_TranslateInZ(direction = -1)
+            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
+            rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
+
+            # new z height
+            targetPoseEngaged = rtde_help.getCurrentPose()
+            F_normal = FT_help.averageFz_noOffset
+
+          rospy.sleep(0.3)
+
+          # update position
           targetPoseEngaged = rtde_help.getCurrentPose()
           F_normal = FT_help.averageFz_noOffset
+          targetPose = targetPoseEngaged  # Update targetPose after unloading
 
-          # print(F_normal, FT_help.thisForce.force.z)
-
-        print("current normal force: ", F_normal)
-
-        # change motor speed
-        adpt_help.d_z_normal = 2e-5
-
-        # unload
-        while targetPoseEngaged.pose.position.z < positionA[2]:
-          T_move = adpt_help.get_Tmat_TranslateInZ(direction = -1)
-          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
-          rtde_help.goToPoseAdaptive(targetPose, time = 0.1)
-
-          # new z height
-          targetPoseEngaged = rtde_help.getCurrentPose()
-          F_normal = FT_help.averageFz_noOffset
-
-          # print(F_normal, FT_help.thisForce.force.z)
 
         farFlag = False
         rtde_help.stopAtCurrPoseAdaptive()
-        print("reached threshhold normal force: ", F_normal)
         args.normalForceUsed= F_normal
-        rospy.sleep(0.8)
-        syncPub.publish(SYNC_STOP)
-        rospy.sleep(0.2)
 
-    # stop data logging
-    record_digit = False
+    # print(f'Recording final data')
+    # save_frames(capture_digit)
+    # rospy.sleep(test_config.SAVE_PERIOD)
+    toggle_digit(False)
+    syncPub.publish(SYNC_STOP)
     dataLoggerEnable(False)
-    rospy.sleep(0.5)
 
     # back to pose A
     rtde_help.goToPose(poseA)
@@ -190,6 +200,12 @@ def main(args):
     return
   except KeyboardInterrupt:
     return  
+  
+
+# function for saving certain number of frames
+def save_frames(capture_digit, wait_time=test_config.SAVE_PERIOD):
+  capture_digit(True)
+  rospy.sleep(wait_time)  # Wait for the specified save period
 
 
 if __name__ == '__main__':  

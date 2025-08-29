@@ -168,6 +168,14 @@ def main(args):
           F_normal = FT_help.averageFz_noOffset
           targetPose = targetPoseEngaged  # Update targetPose after unloading
 
+          # reset bias
+          rospy.sleep(0.1)
+          try:
+            FT_help.setNowAsBias()
+            rospy.sleep(0.1)
+          except:
+            print("set now as offset failed, but it's okay")
+
           # save some data after each cycle
           rospy.sleep(0.1)
           print(f'Recording data at cycle {i+1}...')

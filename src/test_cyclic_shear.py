@@ -157,14 +157,15 @@ def main(args):
 
           rtde_help.stopAtCurrPoseAdaptive()
           targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
-          rospy.sleep(0.2)
+          rospy.sleep(0.1)
           # update shear force
           F_shear = FT_help.averageFy_noOffset if args.surface == 'flat' else FT_help.averageFx_noOffset
 
           # drag
           print("drag")
           # while abs(targetPoseEngaged.pose.position.x - positionA[0]) < test_config.SHEAR_LAT_DISTANCE: # move _ m
-          while (abs(F_shear) < y_force and
+          # while (F_shear > -y_force and # for flat shear test
+          while (abs(F_shear) < y_force and   # for indenter shear test
                  abs(targetPoseEngaged.pose.position.x - positionA[0]) < test_config.SHEAR_LAT_DISTANCE):
             T_move = adpt_help.get_Tmat_TranslateInY(direction = 1) if args.surface == 'flat' else adpt_help.get_Tmat_TranslateInX(direction = -1)
             targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, targetPose)
@@ -182,7 +183,7 @@ def main(args):
 
           rtde_help.stopAtCurrPoseAdaptive()
           targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
-          rospy.sleep(0.2)
+          rospy.sleep(0.1)
 
           save_frames(capture_digit)
 
@@ -212,6 +213,15 @@ def main(args):
 
           rtde_help.stopAtCurrPoseAdaptive()
           targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
+
+          rospy.sleep(0.1)
+
+          # reset bias
+          try:
+            FT_help.setNowAsBias()
+            rospy.sleep(0.1)
+          except:
+            print("set now as offset failed, but it's okay")
 
           rospy.sleep(0.1)
           save_frames(capture_digit)

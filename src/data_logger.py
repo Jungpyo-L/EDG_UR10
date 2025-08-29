@@ -89,6 +89,7 @@ def capture_digit_image_service(req):
     try:
         imgs = []
         times = []
+        # for i in range(test_config.SAVE_FRAMES_GRATING):
         for i in range(test_config.SAVE_FRAMES):
             msg = rospy.wait_for_message("/digitFrame", Image, timeout=2.0)
             ros_time = msg.header.stamp
@@ -417,5 +418,6 @@ if __name__ == '__main__':
     # Advertise the data_logging service
     service = rospy.Service('data_logging', Enable, setLoggingState)
     digit_service = rospy.Service('capture_digit_frame', SetBool, capture_digit_image_service)
+    digit_toggle_service = rospy.Service('toggle_digit_frame', SetBool, toggle_digit_frame_service)
 
     rospy.spin()

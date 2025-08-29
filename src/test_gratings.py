@@ -61,14 +61,17 @@ def main(args):
   # controller node
   rospy.init_node('edg_experiment')
 
+  fileName = args.fileName if args.fileName else None
+  print(fileName) # doesn't work since fileSaveHelp object actually running separately
+
   # Setup helper functions
   FT_help = FT_CallbackHelp() # it deals with subscription.
-  rospy.sleep(0.5)
-  file_help = fileSaveHelp(saveFrames=True)
-  rospy.sleep(0.5)
+  rospy.sleep(0.1)
+  file_help = fileSaveHelp(fileName=fileName, saveFrames=True)
+  rospy.sleep(0.1)
   rtde_help = rtdeHelp(125)
   adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z = test_config.GRATINGS_Z_SPEED) # need to change d_z to change the speed of the robot
-  rospy.sleep(0.5)
+  rospy.sleep(0.1)
   rtde_help.setTCPoffset(test_config.VBTS_TCP_OFFSET)
 
   # Set the synchronization Publisher
@@ -81,14 +84,19 @@ def main(args):
   print("Wait for digit frame toggle service")
   rospy.wait_for_service('capture_digit_frame')
   capture_digit = rospy.ServiceProxy('capture_digit_frame', SetBool)
-  rospy.sleep(1)
+  rospy.sleep(.1)
   file_help.clearTmpFolder()        # clear the temporary folder
   datadir = file_help.ResultSavingDirectory
 
 
   # Set the pose A
   positionA = test_config.GRATINGS_POS_A   # for gratings
-  orientationA = tf.transformations.quaternion_from_euler(np.pi+0.012,0.012,-np.pi/2,'sxyz') #static (s) rotating (r)
+  orientationA = tf.transformations.quaternion_from_euler(np.pi+.008,-0.001,-np.pi/2,'sxyz') # pu S1
+  # orientationA = tf.transformations.quaternion_from_euler(np.pi+.008,-0.005,-np.pi/2,'sxyz') # pu S2
+  # orientationA = tf.transformations.quaternion_from_euler(np.pi-.006,0.015,-np.pi/2,'sxyz') # pu S3
+  # orientationA = tf.transformations.quaternion_from_euler(np.pi+.004,-0.005,-np.pi/2,'sxyz') # si S1
+  # orientationA = tf.transformations.quaternion_from_euler(np.pi-.002,-0.00,-np.pi/2,'sxyz') # si S2
+  # orientationA = tf.transformations.quaternion_from_euler(np.pi-0.02,-0.008,-np.pi/2,'sxyz') # si S3
   poseA = rtde_help.getPoseObj(positionA, orientationA)
 
   # pose B is loaded pose
@@ -118,7 +126,7 @@ def main(args):
     save_frames(capture_digit)
     syncPub.publish(SYNC_START)
     rospy.sleep(test_config.SAVE_PERIOD)
-    rospy.sleep(0.2)
+    rospy.sleep(0.5)
 
     print("loading...")
 
@@ -151,10 +159,10 @@ def main(args):
       farFlag = False
       rtde_help.stopAtCurrPoseAdaptive()
       targetPose = rtde_help.getCurrentPose()  # Update targetPose after stopping
-      rospy.sleep(1)
+      rospy.sleep(.1)
       print("reached threshhold normal force: ", F_normal)
       args.normalForceUsed= F_normal
-      rospy.sleep(0.8)
+      rospy.sleep(1)
 
     # go to pose B
     # print("Going to pose B")
@@ -195,6 +203,7 @@ if __name__ == '__main__':
   parser.add_argument('--int', type=int, help='argument for int type', default= 100)
   parser.add_argument('--str', type=str, help='argument for str type', default= "string")
   parser.add_argument('--bool', type=bool, help='argument for bool type', default= True)
+  parser.add_argument('--fileName', type=str, help='file name for saving data', default= None)
 
   args = parser.parse_args()    
   main(args)

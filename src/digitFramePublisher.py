@@ -15,7 +15,8 @@ def digitFramePublisher():
     d = Digit("D20019")
     d.connect()
     # print("supported streams: \n {}".format(Digit.STREAMS))
-    d.set_resolution(Digit.STREAMS['QVGA'])
+    # d.set_resolution(Digit.STREAMS['VGA']) # VGS for gratings test
+    d.set_resolution(Digit.STREAMS['QVGA']) 
 
     bridge = CvBridge()
     rate = rospy.Rate(30)

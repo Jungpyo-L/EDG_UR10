@@ -8,8 +8,9 @@ import re
 import cv2
 
 class fileSaveHelp(object):
-    def __init__(self, savingFolderName='EDG_Experiment', saveFrames=True):
+    def __init__(self, savingFolderName='EDG_Experiment', fileName=None, saveFrames=True):
         self.savingFolderName = savingFolderName
+        self.fileName = fileName
         self.saveFrames = saveFrames
         self.ResultSavingDirectory = os.path.expanduser('~') + '/' + self.savingFolderName + '/' + datetime.now().strftime("%y%m%d")
         if not os.path.exists(self.ResultSavingDirectory):
@@ -75,9 +76,12 @@ class fileSaveHelp(object):
         # savingFileName_noDir = 'DataLog_' + '_'.join(splitedList[1:4])
         from datetime import datetime
         time_tag = datetime.now().strftime("%Y_%m%d_%H%M%S")
-        savingFileName_noDir = 'DataLog_' + time_tag
+        if self.fileName is None:
+            savingFileName_noDir = 'DataLog_' + time_tag
+        else:
+            savingFileName_noDir = self.fileName
 
-        savingFileName = self.ResultSavingDirectory + '/' + savingFileName_noDir + '_' + appendTxt + '.mat'
+        savingFileName = self.ResultSavingDirectory + '/' + savingFileName_noDir + '.mat'
         print(savingFileName)
 
         # Save image frames with timestamps
