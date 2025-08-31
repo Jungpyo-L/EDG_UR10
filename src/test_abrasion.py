@@ -76,8 +76,7 @@ def main(args):
   file_help = fileSaveHelp(saveFrames=True)
   rospy.sleep(0.5)
   rtde_help = rtdeHelp(125)
-  z_speed = 1e-6
-  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z = test_config.SENS_Z_SPEED) # need to change d_z to change the speed of the robot
+  adpt_help = adaptMotionHelp(d_w = 1,d_lat = 10e-3, d_z = test_config.ABRASION_Z_SPEED) # need to change d_z to change the speed of the robot
   rospy.sleep(0.5)
   rtde_help.setTCPoffset(test_config.VBTS_TCP_OFFSET)
 
@@ -124,19 +123,20 @@ def main(args):
     # start data logging with video recording. record 1 second of noload data
     record_digit = True
     dataLoggerEnable(True)
-    save_frames(capture_digit)
     syncPub.publish(SYNC_START)
+    save_frames(capture_digit)
     rospy.sleep(0.2)
 
     # turn off LED and move to pos B
-    rtde_help.goToPose(poseB)
-    input("Turn off LED and press <Enter> to record data")
-    rospy.sleep(0.1)
-    save_frames(capture_digit)
+    if args.illuminance:
+      rtde_help.goToPose(poseB)
+      input("Turn off LED and press <Enter> to record data")
+      rospy.sleep(0.1)
+      save_frames(capture_digit)
 
-    # back to pose A to prepare for abrasion test
-    rospy.sleep(0.1)
-    rtde_help.goToPose(poseA)
+      # back to pose A to prepare for abrasion test
+      rospy.sleep(0.1)
+      rtde_help.goToPose(poseA)
 
 
     # flags and variables
@@ -168,7 +168,7 @@ def main(args):
           rospy.sleep(0.2)
           targetPose = targetPoseEngaged # Update targetPose to the current pose
 
-          # record 1 second of data
+          # record data
           input(f'press <Enter> after running abrasion test...')
 
           # unload
@@ -179,18 +179,21 @@ def main(args):
           save_frames(capture_digit)
           rospy.sleep(0.1)
 
-          # move to pose B
-          rtde_help.goToPose(poseB)
+          if args.illuminance:
+            # move to pose B
+            rtde_help.goToPose(poseB)
 
-          input('press <Enter> after turning off LED...')
-          print('recording LED off data...')
-          save_frames(capture_digit)
+            input('press <Enter> after turning off LED...')
+            print('recording LED off data...')
+            save_frames(capture_digit)
 
-          rospy.sleep(0.2)
+            rospy.sleep(0.2)
 
-          # move back to pose A
-          rtde_help.goToPose(poseA)
-          rospy.sleep(0.2)
+            # move back to pose A
+            rtde_help.goToPose(poseA)
+            rospy.sleep(0.2)
+
+            
           targetPoseEngaged = rtde_help.getCurrentPose()
           targetPose = targetPoseEngaged # Update targetPose to the current pose
           F_normal = FT_help.averageFz_noOffset
@@ -229,6 +232,7 @@ if __name__ == '__main__':
   parser.add_argument('--int', type=int, help='argument for int type', default= 100)
   parser.add_argument('--str', type=str, help='argument for str type', default= "string")
   parser.add_argument('--bool', type=bool, help='argument for bool type', default= True)
+  parser.add_argument('--illuminance', type=bool, help='test illuminance?', default=False)
 
   args = parser.parse_args()    
   main(args)

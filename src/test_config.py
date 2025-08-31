@@ -5,8 +5,8 @@ VBTS_TCP_OFFSET = [0, 0, 0.1225, 0, 0, 0]  # for raised indenter
 
 # positions
 FLAT_POS_A = [0.550, -0.188, 0.012]
-INDENTER_POS_A = [0.6266, -0.189, 0.055] ## .188 for compressoin
-ABRASION_POS_A = [0.7479, -0.20684, 0.115]
+INDENTER_POS_A = [0.626, -0.1862, 0.053] ## .188 for compressoin
+ABRASION_POS_A = [0.572, -0.202, 0.115]
 ABRASION_POS_B = [0.400, -0.20684, 0.2]
 GRATINGS_POS_A = [0.46193, -0.18743, 0.014]
 SENS_POS_A = [0.480, -0.260, 0.032]
@@ -15,9 +15,9 @@ SENS_POS_A = [0.480, -0.260, 0.032]
 COMPRESSION_Z_SPEED = 4e-5
 SHEAR_Z_SPEED = 4e-5
 SHEAR_LAT_SPEED = 2e-5
-RANGE_Z_SPEED = 1e-6
+RANGE_Z_SPEED = 2e-6
 GRATINGS_Z_SPEED = 3e-6
-SENS_Z_SPEED = 2e-5
+ABRASION_Z_SPEED = 6e-6
 
 # shear lateral distance
 SHEAR_LAT_DISTANCE = 0.03   # in m
@@ -36,7 +36,7 @@ SENS_FORCE_THRESHOLD = 10
 # cycles
 COMPRESSION_CYCLES = 1000
 SHEAR_CYCLES = 1000
-ABRASION_CYCLES = 1
+ABRASION_CYCLES = 4
 
 # time period for saving still data
 SAVE_PERIOD = 0.001  # time to wait for collecting frames
