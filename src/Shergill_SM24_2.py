@@ -55,18 +55,18 @@ from helperFunction.rtde_helper import rtdeHelp
 
 
 
-def significant_motion_check(currentPose, targetPose, position_threshold=1e-3, rotation_threshold=1e-2):
-    position_diff = np.linalg.norm(
-        np.array([currentPose.pose.position.x, currentPose.pose.position.y, currentPose.pose.position.z]) -
-        np.array([targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z])
-    )
-    rotation_diff = np.linalg.norm(
-        np.array([currentPose.pose.orientation.x, currentPose.pose.orientation.y,
-                  currentPose.pose.orientation.z, currentPose.pose.orientation.w]) -
-        np.array([targetPose.pose.orientation.x, targetPose.pose.orientation.y,
-                  targetPose.pose.orientation.z, targetPose.pose.orientation.w])
-    )
-    return position_diff > position_threshold or rotation_diff > rotation_threshold
+# def significant_motion_check(currentPose, targetPose, position_threshold=1e-3, rotation_threshold=1e-2):
+#     position_diff = np.linalg.norm(
+#         np.array([currentPose.pose.position.x, currentPose.pose.position.y, currentPose.pose.position.z]) -
+#         np.array([targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z])
+#     )
+#     rotation_diff = np.linalg.norm(
+#         np.array([currentPose.pose.orientation.x, currentPose.pose.orientation.y,
+#                   currentPose.pose.orientation.z, currentPose.pose.orientation.w]) -
+#         np.array([targetPose.pose.orientation.x, targetPose.pose.orientation.y,
+#                   targetPose.pose.orientation.z, targetPose.pose.orientation.w])
+#     )
+#     return position_diff > position_threshold or rotation_diff > rotation_threshold
 
 def main(args):
 

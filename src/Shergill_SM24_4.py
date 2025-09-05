@@ -3,6 +3,8 @@
 # This is a file for combining planar motion with rotational motion.
 # This file is part of the EDG UR10 project.
 
+# Created by Nimran Shergill (September 09 2025)
+# This is a file for closed-loop trajectory control for the robot arm in granular media.
 # Imports
 try:
   import rospy
@@ -84,7 +86,7 @@ def main(args):
       T_overall = np.linalg.inv(T_start) @ T_curr 
       new_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
       if T_overall[2, 0] > 0:  
-          new_angle = -new_angle # making sure it updates, will be "overall_angle" at end
+        new_angle = -new_angle # making sure it updates, will be "overall_angle" at end
 
       R_relative = T_overall[:3,:3] 
       return R_relative, new_angle
@@ -95,17 +97,18 @@ def main(args):
     
     if sign == -1: 
       while overall_angle > starting_angle - delta_rotAngle: # negative rotation
-         R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
+        R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
 
     elif sign == 1:
        while overall_angle < starting_angle + delta_rotAngle:
-          R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
+        R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
   
-  t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
-  Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
-  return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+    t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
+    Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
+    return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
     
-  def RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, T_start, R_relative, t_horiz_local, Vertical_Axis_Local, delta_rotAngle = 2):
+  def RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, T_start, 
+                    R_relative, t_horiz_local, Vertical_Axis_Local, delta_rotAngle = 2):
     # This function checks the slope after 2 cm and evaluates whether to rotate
     # then the rotation is performed
     # rotation matrix is defined
@@ -113,7 +116,7 @@ def main(args):
     # Need condition for over rotation 
     dx = waypoint[0] - currentPose.pose.position.x
     dz = waypoint[2] - currentPose.pose.position.z
-    if abs (dx) < 1e-6: # might happen at the end
+    if abs(dx) < 1e-6: # might happen at the end
       print("dx approx. 0, vertical slope case, avoiding rotation")
       return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
     
@@ -132,7 +135,7 @@ def main(args):
             sign = 1
             if overall_angle + delta_rotAngle > 30:
                print("Skipping rotation: would exceed +30 degrees")
-               return R_relative, t_horiz_local, Vertical_Axis_Local
+               return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
             Rotate(T_start, overall_angle, sign)
     return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
 
@@ -208,18 +211,16 @@ def main(args):
     rospy.sleep(1)
 
     ################################ INITIATE MOTION SEQUENCE ################################
-# Initializing parameters
-    T_cumulative = np.eye(4) # cumulative transformation matrix
-    T_move = np.eye(4) 
-    overall_angle = 0 
-    T_start = adpt_help.get_Tmat_from_Pose(rtde_help.getCurrentPose()) # get the transformation matrix from the current pose
+    # Initializing parameters
+    currentPose = rtde_help.getCurrentPose()
+    T_start = adpt_help.get_Tmat_from_Pose(currentPose) # get the transformation matrix from the current pose
     R_start = T_start[:3,:3] # get the rotation matrix from the transformation matrix
     T_horiz_world = adpt_help.get_Tmat_TranlateInX(direction = -1) # move in the negative x direction
     T_vertical_world = adpt_help.get_Tmat_TranlateInZ(direction = 1) # move in the positive z direction
-    #print("T_horiz_world: ", T_horiz_world, "T_vertical_world: ", T_vertical_world)
+    T_cumulative = np.eye(4) # cumulative transformation matrix
+    T_move = np.eye(4) 
+    overall_angle = 0 
     beta = 25; # EDIT ME ###################
-
-    currentPose = rtde_help.getCurrentPose() # get the current pose after the motion
 
     # Define waypoint
     waypoint = [x,y,z]; # EDIT THIS LINE
@@ -252,20 +253,22 @@ def main(args):
 
       # Get the target pose 
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
-        #print(" ###################### targetPose z: ", targetPose.pose.position.z)
       rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
       currentPose = rtde_help.getCurrentPose()
 
       # Fulfill the vertical motion
       tolerance = 0.0010 # I'll adjust this if I start moving into cm territory
-        #print('difference: ', abs(currentPose.pose.position.z - targetPose.pose.position.z))
       while abs(currentPose.pose.position.z - targetPose.pose.position.z) > tolerance:
         rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
         currentPose = rtde_help.getCurrentPose()
     syncPub.publish(2) # end of the first motion segment
 
     # First rotation
-    R_relative, t_horiz_local, Vertical_Axis_Local = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, T_start)
+    R_relative = np.eye(3);
+    t_horiz_local = [-0.01, 0, 0]
+    Vertical_Axis_Local = [0, 0, 0.01]
+    R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta,
+                                                                                   T_start, R_relative, t_horiz_local, Vertical_Axis_Local)
     
     currentPose = rtde_help.getCurrentPose()
     counter = 3
@@ -276,54 +279,58 @@ def main(args):
         FT_help.setNowAsBias()
         T_move = np.eye(4) 
         while currentPose.pose.position.x < x_end: # MOTION FOR TWO CM
-            F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
-            F_vertical_world = np.array([0,0, F_world[2]]) 
-            F_vertical_local = R_relative.T @ F_vertical_world
-            print("F_vertical_local: ", F_vertical_local[2]) 
-            
-            T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
-            t_vertical_local = T_normal[:3, 3]
-            magnitude = np.dot(t_vertical_local, Vertical_Axis_Local)
-            t_vertical_local = magnitude*Vertical_Axis_Local
+          F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
+          F_vertical_world = np.array([0,0, F_world[2]]) 
+          F_vertical_local = R_relative.T @ F_vertical_world
+          print("F_vertical_local: ", F_vertical_local[2]) 
+          
+          T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
+          t_vertical_local = T_normal[:3, 3]
+          magnitude = np.dot(t_vertical_local, Vertical_Axis_Local)
+          t_vertical_local = magnitude*Vertical_Axis_Local
 
-            t_move = t_vertical_local + t_horiz_local
-            T_move[:3,3] = t_move
-            
-            # Get the target pose 
-            targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
+          t_move = t_vertical_local + t_horiz_local
+          T_move[:3,3] = t_move
+          
+          # Get the target pose 
+          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
+          rtde_help.goToPoseAdaptive(targetPose, time = 0.5) # EDIT TIME LINE
+          currentPose = rtde_help.getCurrentPose()
+
+          tolerance = 0.001 
+          while abs(currentPose.pose.position.z - targetPose.pose.position.z) >= tolerance:
             rtde_help.goToPoseAdaptive(targetPose, time = 0.5) # EDIT TIME LINE
-            currentPose = rtde_help.getCurrentPose()
+            currentPose = rtde_help.getCurrentPose()     
 
-            tolerance = 0.001 
-            while abs(currentPose.pose.position.z - targetPose.pose.position.z) >= tolerance:
-                rtde_help.goToPoseAdaptive(targetPose, time = 0.5) # EDIT TIME LINE
-                currentPose = rtde_help.getCurrentPose()      
-        syncPub.publish(counter+1) ###############################
-        counter += 1
-
-        R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = ...
-        RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, T_start, R_relative, t_horiz_local, Vertical_Axis_Local) 
-        currentPose = rtde_help.getCurrentPose()
+          syncPub.publish(counter+1) ###############################
+          counter += 1
+          # Rotate the object before
+          R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, 
+                                                                                        T_start, R_relative, t_horiz_local, Vertical_Axis_Local) 
+          currentPose = rtde_help.getCurrentPose()
    #######################################################################
     dataLoggerEnable(False) 
     rospy.sleep(0.2)
 
    # Checking if waypoint was reached
-   currentPose = rtde_help.getCurrentPose()
-   if waypoint[2] == currentPose.pose.position.z:
-      print("Waypoint reached!)
-   else:
+    currentPose = rtde_help.getCurrentPose()
+    if waypoint[2] == currentPose.pose.position.z:
+      print("Waypoint reached!")
+    else:
       print("Waypoint not reached!")
+      print("Waypoint: ", waypoint)
+      print("currentPose: ", currentPose)
       
-   args.endPose = currentPose
+    args.endPose = currentPose
     # save data and clear the temporary folder
-   file_help.saveDataParams(args, appendTxt='beta_'+str(args.beta)+'_DEMO_trial_'+str(args.trialNum)+'_Shergill')
-   file_help.clearTmpFolder()
+    file_help.saveDataParams(args, appendTxt='beta_'+str(args.beta)+'_DEMO_trial_'+str(args.trialNum)+'_Shergill')
+    file_help.clearTmpFolder()
   except rospy.ROSInterruptException:
-        return
+      return
   except KeyboardInterrupt:
-        return  
+      return  
         # NEED TO ENABLE DATALOGGER
+
 if __name__ == '__main__':
   import argparse
   parser = argparse.ArgumentParser()
