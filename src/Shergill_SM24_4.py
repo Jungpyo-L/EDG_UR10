@@ -82,49 +82,62 @@ def main(args):
       currentPose = rtde_help.getCurrentPose()
       T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
       T_overall = np.linalg.inv(T_start) @ T_curr 
-      overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
+      new_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
       if T_overall[2, 0] > 0:  
-          overall_angle = -overall_angle
+          new_angle = -new_angle # making sure it updates, will be "overall_angle" at end
 
       R_relative = T_overall[:3,:3] 
-      return R_relative
+      return R_relative, new_angle
      
 
   def Rotate(T_start, overall_angle, sign, delta_rotAngle = 2):
     starting_angle = overall_angle
+    
     if sign == -1: 
-      while overall_angle < starting_angle - delta_rotAngle: # negative rotation
-         RotationBaseCode(T_start, overall_angle, sign)
-    t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
-    Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
+      while overall_angle > starting_angle - delta_rotAngle: # negative rotation
+         R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
 
     elif sign == 1:
        while overall_angle < starting_angle + delta_rotAngle:
-          RotationBaseCode(T_start, overall_angle, sign)
-
-
-
-  def RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, T_start):
+          R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
+  
+  t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
+  Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
+  return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+    
+  def RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, T_start, R_relative, t_horiz_local, Vertical_Axis_Local, delta_rotAngle = 2):
     # This function checks the slope after 2 cm and evaluates whether to rotate
     # then the rotation is performed
     # rotation matrix is defined
     # Checking slope
     # Need condition for over rotation 
-    vel = (waypoint[2] - currentPose.pose.position.z)/(waypoint[0] - currentPose.pose.position.x)
+    dx = waypoint[0] - currentPose.pose.position.x
+    dz = waypoint[2] - currentPose.pose.position.z
+    if abs (dx) < 1e-6: # might happen at the end
+      print("dx approx. 0, vertical slope case, avoiding rotation")
+      return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+    
+    vel = dz/dx # Calculating slope 
     # Compare with desired_vel and choose rotation direction
     difference = np.abs(desired_vel) - np.abs(vel)
     tolerance = 0.0001 # EDIT ME, original value = 0.0001
     if desired_vel < 0: # waypoint is below x=0
         if difference < tolerance: # less negative number than desired slope
             sign = -1
-            Rotate(currentPose, T_start, overall_angle, sign)
+            if overall_angle - delta_rotAngle < -30: # might add a .5 to allow for wiggle room
+               print("Skipping rotaion: would exceed -30 degrees")
+               return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+            Rotate(T_start, overall_angle, sign)
         elif difference > tolerance: # more negative number than desired slope
-            Rotate(currentPose, T_start, overall_angle, sign)
-        elif difference == tolerance: # slopes are equivalent
-            #keep moving
-            print("EDIT THIS PART BUT NO CHANGE IN MOTION")
-              
-    # elif desired_vel > 0:
+            sign = 1
+            if overall_angle + delta_rotAngle > 30:
+               print("Skipping rotation: would exceed +30 degrees")
+               return R_relative, t_horiz_local, Vertical_Axis_Local
+            Rotate(T_start, overall_angle, sign)
+    return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+
+
+    # elif desired_vel > 0: # Waypoint is above x = 0 
     #     if difference > tolerance:
     #         # TODO
     #     elif difference < tolerance:
@@ -194,14 +207,6 @@ def main(args):
     rtde_help.goToPose(PoseD)
     rospy.sleep(1)
 
-    # ZERO GRAVITY AND OTHER FORCES
-    FT_help.setNowAsBias() # offset the force sensor, zeros gravity and other forces
-    args.ForceOffset1 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz]
-
-    input("Press <Enter> to snout motion sequence with horizontal motion + rotations")
-    dataLoggerEnable(True)
-    rospy.sleep(0.5) # default is 0.5
-
     ################################ INITIATE MOTION SEQUENCE ################################
 # Initializing parameters
     T_cumulative = np.eye(4) # cumulative transformation matrix
@@ -209,7 +214,6 @@ def main(args):
     overall_angle = 0 
     T_start = adpt_help.get_Tmat_from_Pose(rtde_help.getCurrentPose()) # get the transformation matrix from the current pose
     R_start = T_start[:3,:3] # get the rotation matrix from the transformation matrix
-    FT_help.setNowAsBias() # not needed yet, but will be used later
     T_horiz_world = adpt_help.get_Tmat_TranlateInX(direction = -1) # move in the negative x direction
     T_vertical_world = adpt_help.get_Tmat_TranlateInZ(direction = 1) # move in the positive z direction
     #print("T_horiz_world: ", T_horiz_world, "T_vertical_world: ", T_vertical_world)
@@ -226,8 +230,15 @@ def main(args):
     desired_vel = (waypoint[2] - currentPose.pose.position.z)/(waypoint[0] - currentPose.pose.position.x)
     
     #MOTION SEQUENCE BEGINS
-    
-    # First two cm 
+    # ZERO GRAVITY AND OTHER FORCES
+    FT_help.setNowAsBias() # offset the force sensor, zeros gravity and other forces
+    args.ForceOffset1 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz]
+
+    input("Press <Enter> to snout motion sequence with horizontal motion + rotations")
+    dataLoggerEnable(True)
+    rospy.sleep(0.5) # default is 0.5
+
+    # FIRST TWO CM - NO ROTATION YET ########################################
     syncPub.publish(1)
     x_start = currentPose.pose.position.x
     while currentPose.pose.position.x < x_start + 0.02:
@@ -252,14 +263,15 @@ def main(args):
         rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
         currentPose = rtde_help.getCurrentPose()
     syncPub.publish(2) # end of the first motion segment
-    
-    RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, T_start)
+
+    # First rotation
+    R_relative, t_horiz_local, Vertical_Axis_Local = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, T_start)
     
     currentPose = rtde_help.getCurrentPose()
     counter = 3
     while currentPose.pose.position.x < waypoint[0]:
         x_start = currentPose.pose.position.x
-        x_end = x_start + 0.02 # x_start (wherever we are) + 2 cm
+        x_end = min(x_start + 0.02, waypoint[0]) # x_start (wherever we are) + 2 cm
         syncPub.publish(counter) #################################
         FT_help.setNowAsBias()
         T_move = np.eye(4) 
@@ -287,24 +299,31 @@ def main(args):
                 rtde_help.goToPoseAdaptive(targetPose, time = 0.5) # EDIT TIME LINE
                 currentPose = rtde_help.getCurrentPose()      
         syncPub.publish(counter+1) ###############################
-        counter = counter + 1
-        RotationCheck(currentPose, waypoint, overall_angle, beta) 
+        counter += 1
+
+        R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = ...
+        RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, T_start, R_relative, t_horiz_local, Vertical_Axis_Local) 
         currentPose = rtde_help.getCurrentPose()
-        
-        # CHECK IF WAYPOINT WAS REACHED
-        # NEED TO ENABLE DATALOGGER
-        # DETERMINE HOW OFF WE ARE
-        # save ending spot as an argument
-        # add ending conditions and keyboard shortcuts and the ending main args thing
-        
+   #######################################################################
+    dataLoggerEnable(False) 
+    rospy.sleep(0.2)
 
-
-
+   # Checking if waypoint was reached
+   currentPose = rtde_help.getCurrentPose()
+   if waypoint[2] == currentPose.pose.position.z:
+      print("Waypoint reached!)
+   else:
+      print("Waypoint not reached!")
+      
+   args.endPose = currentPose
+    # save data and clear the temporary folder
+   file_help.saveDataParams(args, appendTxt='beta_'+str(args.beta)+'_DEMO_trial_'+str(args.trialNum)+'_Shergill')
+   file_help.clearTmpFolder()
   except rospy.ROSInterruptException:
         return
   except KeyboardInterrupt:
         return  
-
+        # NEED TO ENABLE DATALOGGER
 if __name__ == '__main__':
   import argparse
   parser = argparse.ArgumentParser()
