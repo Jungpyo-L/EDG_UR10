@@ -96,7 +96,7 @@ def main(args):
   # Pose B has to be defined relative to A so it is defined during the motion sequence
 
   # We descend into media. No rotation. 
-  PositionC = [0.200, -0.230, 0.260] # approx 8 cm below surface of grains
+  PositionC = [0.240, -0.230, 0.270] # approx 8 cm below surface of grains, 0.26?
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
   ##################################################
@@ -113,7 +113,7 @@ def main(args):
     # POSE B
     input("Press <Enter> to go to PoseB")
     currentPose = rtde_help.getCurrentPose()
-    PositionB = [0.200, -0.230, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
+    PositionB = [0.240, -0.230, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
     OrientationB = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi,'sxyz') #static (s) rotating (r)
     #   Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
     PoseB = rtde_help.getPoseObj(PositionB, OrientationB)
@@ -129,7 +129,7 @@ def main(args):
     print('\n')
     input("Press <Enter> to go to PoseD")
     currentPose = rtde_help.getCurrentPose()
-    PositionD = [0.240, currentPose.pose.position.y, currentPose.pose.position.z] # approx 8 cm below surface of grains
+    PositionD = [0.280, currentPose.pose.position.y, currentPose.pose.position.z] # approx 8 cm below surface of grains
     OrientationD = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation 
     PoseD = rtde_help.getPoseObj(PositionD, OrientationD) 
     rtde_help.goToPose(PoseD)
@@ -201,7 +201,7 @@ def main(args):
     # currentPose = rtde_help.getCurrentPose()
     # current_x = currentPose.pose.position.x
     # syncPub.publish(1)
-    # while currentPose.pose.position.x < current_x + 0.3:
+    # while currentPose.pose.position.x < current_x + 0.25:
     #   currentPose = rtde_help.getCurrentPose()
     #   # print('currentPose x', currentPose.pose.position.x)
     #   targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_horiz_world, currentPose)
@@ -231,7 +231,7 @@ def main(args):
     currentPose = rtde_help.getCurrentPose()
     current_x = currentPose.pose.position.x
     syncPub.publish(1) 
-    while currentPose.pose.position.x < current_x + 0.3:
+    while currentPose.pose.position.x < current_x + 0.25:
       currentPose = rtde_help.getCurrentPose()
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_horiz_rotated, currentPose)
       rtde_help.goToPoseAdaptive(targetPose, time=0.5)
@@ -565,7 +565,7 @@ def main(args):
   #   ################ CONCLUDING MOTION #####################################      
     dataLoggerEnable(False)
     # save data and clear the temporary folder
-    file_help.saveDataParams(args, appendTxt='_'+str(args.beta)+'DEGS'+'-trial-'+str(args.trialNum)+'-Shergill-Snout-Experiment')                          
+    file_help.saveDataParams(args, appendTxt='_'+str(args.beta)+'HORIZONTAL'+'-trial-'+str(args.trialNum)+'-Shergill-Snout-Experiment')                          
     file_help.clearTmpFolder()        # clear the temporary folder
 
   #   # Print the final orientation
