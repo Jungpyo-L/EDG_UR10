@@ -6,6 +6,7 @@
 # Created by Nimran Shergill (September 09 2025)
 # This is a file for closed-loop trajectory control for the robot arm in granular media.
 # Imports
+DRY_RUN = False
 try:
   import rospy
   import tf
@@ -73,23 +74,58 @@ def main(args):
   file_help.clearTmpFolder()        # clear the temporary folder
   datadir = file_help.ResultSavingDirectory
 
-  def RotationBaseCode(T_start, overall_angle, sign):
-      adpt_help.dw = 0.01
-      #Define and execute motion
-      T_rot_step = adpt_help.get_Tmat_RotateInY(direction = sign) 
-      currentPose = rtde_help.getCurrentPose()
-      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
-      rtde_help.goToPoseAdaptive(targetPose, time=0.05)
-      # Update angle
-      currentPose = rtde_help.getCurrentPose()
-      T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
-      T_overall = np.linalg.inv(T_start) @ T_curr 
-      new_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
-      if T_overall[2, 0] > 0:  
-        new_angle = -new_angle # making sure it updates, will be "overall_angle" at end
+  def simulate_step(currentPose, targetPose, step_size=0.002):
+    # """Increment currentPose toward targetPose by step_size (m)."""
+    dx = targetPose.pose.position.x - currentPose.pose.position.x
+    dz = targetPose.pose.position.z - currentPose.pose.position.z
 
-      R_relative = T_overall[:3,:3] 
-      return R_relative, new_angle
+    # Increment X
+    if abs(dx) > step_size:
+        currentPose.pose.position.x += step_size * np.sign(dx)
+    else:
+        currentPose.pose.position.x = targetPose.pose.position.x
+
+    # Increment Z
+    if abs(dz) > step_size:
+        currentPose.pose.position.z += step_size * np.sign(dz)
+    else:
+        currentPose.pose.position.z = targetPose.pose.position.z
+
+    print(f"[DRY RUN] Simulated step → x={currentPose.pose.position.x:.3f}, "
+          f"z={currentPose.pose.position.z:.3f}")
+    return currentPose
+
+  def RotationBaseCode(T_start, overall_angle, sign, delta_rotAngle = 2):
+    adpt_help.dw = 0.01
+    # Define and execute motion
+    T_rot_step = adpt_help.get_Tmat_RotateInY(direction=sign) 
+    currentPose = rtde_help.getCurrentPose()
+    targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
+
+    if DRY_RUN:
+      print(f"[DRY RUN] Would move to pose: {targetPose} (time=0.05)")
+    else:
+      rtde_help.goToPoseAdaptive(targetPose, time=0.05)
+
+    # # Update angle
+    # currentPose = rtde_help.getCurrentPose()
+    # T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
+    # T_overall = np.linalg.inv(T_start) @ T_curr 
+    # new_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
+    # if T_overall[2, 0] > 0:  
+    #   new_angle = -new_angle
+    #   print("overall_angle: ", new_angle)
+
+    # Increment overall_angle by small step
+    # Update angle using atan2
+    currentPose = rtde_help.getCurrentPose()
+    T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
+    T_overall = np.linalg.inv(T_start) @ T_curr 
+    new_angle = np.degrees(np.arctan2(T_overall[2,0], T_overall[2,2]))
+
+    # R_relative = T_overall[:3,:3] 
+    return R_relative, new_angle
+     
      
 
   def Rotate(T_start, overall_angle, sign, delta_rotAngle = 2):
@@ -100,63 +136,57 @@ def main(args):
         R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
 
     elif sign == 1:
-       while overall_angle < starting_angle + delta_rotAngle:
+      while overall_angle < starting_angle + delta_rotAngle: # positive rotation
         R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
   
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
     Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
     return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
-    
+  
+  
   def RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, T_start, 
                     R_relative, t_horiz_local, Vertical_Axis_Local, delta_rotAngle = 2):
-    # This function checks the slope after 2 cm and evaluates whether to rotate
-    # then the rotation is performed
-    # rotation matrix is defined
-    # Checking slope
-    # Need condition for over rotation 
     dx = waypoint[0] - currentPose.pose.position.x
     dz = waypoint[2] - currentPose.pose.position.z
-    if abs(dx) < 1e-6: # might happen at the end
-      print("dx approx. 0, vertical slope case, avoiding rotation")
+    print("In RotationCheck!")
+
+    if abs(dx) < 1e-6:
+      if DRY_RUN:
+        print("[RotationCheck] dx ≈ 0 → vertical slope case, skipping rotation")
       return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
-    
-    vel = dz/dx # Calculating slope 
-    # Compare with desired_vel and choose rotation direction
+
+    vel = dz/dx 
     difference = np.abs(desired_vel) - np.abs(vel)
-    tolerance = 0.0001 # EDIT ME, original value = 0.0001
+    #print("Slope difference: ", difference)
+    #print("vel: ", vel)
+    tolerance = 0.0001 
+
+    if DRY_RUN:
+      print(f"[RotationCheck] current_angle={overall_angle:.2f}°, "
+            f"slope vel={vel:.4f}, desired_vel={desired_vel:.4f}, "
+              "difference={difference:.6f}")
+
     if desired_vel < 0: # waypoint is below x=0
-        if difference < tolerance: # less negative number than desired slope
-            sign = -1
-            if overall_angle - delta_rotAngle < -30: # might add a .5 to allow for wiggle room
-               print("Skipping rotaion: would exceed -30 degrees")
-               return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
-            Rotate(T_start, overall_angle, sign)
-        elif difference > tolerance: # more negative number than desired slope
-            sign = 1
-            if overall_angle + delta_rotAngle > 30:
-               print("Skipping rotation: would exceed +30 degrees")
-               return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
-            Rotate(T_start, overall_angle, sign)
+      if difference > tolerance: # less negative slope than desired
+        sign = -1
+        if overall_angle - delta_rotAngle < -30.5:
+          if DRY_RUN: print("[RotationCheck] Skipping: would exceed -30°")
+          return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+        
+        if DRY_RUN: print("[RotationCheck] Decision → rotate negative (sign=-1)")
+        R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
+
+      elif difference < tolerance: # steeper slope than desired
+          sign = 1
+          if overall_angle + delta_rotAngle > 30.5:
+            if DRY_RUN: print("[RotationCheck] Skipping: would exceed +30°")
+            return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+          
+          if DRY_RUN: print("[RotationCheck] Decision → rotate positive (sign=+1)")
+          R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
+
     return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
 
-
-    # elif desired_vel > 0: # Waypoint is above x = 0 
-    #     if difference > tolerance:
-    #         # TODO
-    #     elif difference < tolerance:
-    #         # TODO
-    #     else difference = tolerance:
-    #         # TODO 
-        
-    # else: desired_vel = 0:
-    #       if difference > tolerance:
-    #         # TODO
-    #     elif difference < tolerance:
-    #         # TODO
-    #     else difference = tolerance:
-    #         # TODO 
-        
-        # no rotation
 
   #################################################
   # DEFINE POSES FOR RESETTING TRIALS             #
@@ -172,7 +202,7 @@ def main(args):
   # Pose B has to be defined relative to A so it is defined during the motion sequence
 
   # We descend into media. No rotation. 
-  PositionC = [0.200, -0.230, 0.300] # approx 7 cm below surface of grains, edit to 0.270
+  PositionC = [0.200, -0.230, 0.270] # approx 7 cm below surface of grains, edit to 0.270
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
 
@@ -220,15 +250,17 @@ def main(args):
     T_cumulative = np.eye(4) # cumulative transformation matrix
     T_move = np.eye(4) 
     overall_angle = 0 
-    beta = 25; # EDIT ME ###################
+    beta = 25 # EDIT ME ###################
+    motion_segment = 0.03
 
     # Define waypoint
-    waypoint = [x,y,z]; # EDIT THIS LINE
+    waypoint = [0.340,0.230,0.260]; # EDIT THIS LINE
     args.waypoint = waypoint
     args.startPose = currentPose
 
     # Calculate thetadot (velocity, slope) from current position to waypoint
     desired_vel = (waypoint[2] - currentPose.pose.position.z)/(waypoint[0] - currentPose.pose.position.x)
+    # print("desired velocity = ", desired_vel)
     
     #MOTION SEQUENCE BEGINS
     # ZERO GRAVITY AND OTHER FORCES
@@ -242,7 +274,7 @@ def main(args):
     # FIRST TWO CM - NO ROTATION YET ########################################
     syncPub.publish(1)
     x_start = currentPose.pose.position.x
-    while currentPose.pose.position.x < x_start + 0.02:
+    while currentPose.pose.position.x < x_start + motion_segment:
       adpt_help.dw = 0.01
       # Vertical adaptive motion 
       Fz = FT_help.averageFz_noOffset
@@ -253,61 +285,85 @@ def main(args):
 
       # Get the target pose 
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
-      rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
-      currentPose = rtde_help.getCurrentPose()
 
-      # Fulfill the vertical motion
-      tolerance = 0.0010 # I'll adjust this if I start moving into cm territory
+      if DRY_RUN:
+          currentPose = simulate_step(currentPose, targetPose)
+      else:
+          rtde_help.goToPoseAdaptive(targetPose, time=0.5)
+          currentPose = rtde_help.getCurrentPose()
+
+      # rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
+      # currentPose = rtde_help.getCurrentPose()
+
+      tolerance = 0.001
       while abs(currentPose.pose.position.z - targetPose.pose.position.z) > tolerance:
-        rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
-        currentPose = rtde_help.getCurrentPose()
+        if DRY_RUN:
+            currentPose = simulate_step(currentPose, targetPose)
+        else:
+            rtde_help.goToPoseAdaptive(targetPose, time=0.5)
+            currentPose = rtde_help.getCurrentPose()
+
     syncPub.publish(2) # end of the first motion segment
 
+    input("Press <Enter> to start first rotation")
     # First rotation
     R_relative = np.eye(3);
-    t_horiz_local = [-0.01, 0, 0]
-    Vertical_Axis_Local = [0, 0, 0.01]
+    t_horiz_local = np.array([-0.01, 0, 0])
+    Vertical_Axis_Local = np.array([0, 0, 1])
+    currentPose = rtde_help.getCurrentPose()
     R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta,
                                                                                    T_start, R_relative, t_horiz_local, Vertical_Axis_Local)
-    
+    print("overall angle: ", overall_angle)
+    input("Press <Enter> to start motion after rotation")
     currentPose = rtde_help.getCurrentPose()
     counter = 3
     while currentPose.pose.position.x < waypoint[0]:
-        x_start = currentPose.pose.position.x
-        x_end = min(x_start + 0.02, waypoint[0]) # x_start (wherever we are) + 2 cm
-        syncPub.publish(counter) #################################
-        FT_help.setNowAsBias()
-        T_move = np.eye(4) 
-        while currentPose.pose.position.x < x_end: # MOTION FOR TWO CM
-          F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
-          F_vertical_world = np.array([0,0, F_world[2]]) 
-          F_vertical_local = R_relative.T @ F_vertical_world
-          print("F_vertical_local: ", F_vertical_local[2]) 
-          
-          T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
-          t_vertical_local = T_normal[:3, 3]
-          magnitude = np.dot(t_vertical_local, Vertical_Axis_Local)
-          t_vertical_local = magnitude*Vertical_Axis_Local
+      x_start = currentPose.pose.position.x
+      x_end = min(x_start + motion_segment, waypoint[0]) # x_start (wherever we are) + 2 cm
+      syncPub.publish(counter) #################################
+      counter += 1
+      FT_help.setNowAsBias()
+      T_move = np.eye(4) 
+      while currentPose.pose.position.x < x_end: # MOTION FOR TWO CM
+        print("In the motion sequence!")
+        F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
+        F_vertical_world = np.array([0,0, F_world[2]]) 
+        F_vertical_local = R_relative.T @ F_vertical_world
+        #print("F_vertical_local: ", F_vertical_local[2]) 
+        
+        T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
+        t_vertical_local = T_normal[:3, 3]
+        magnitude = np.dot(t_vertical_local, Vertical_Axis_Local)
+        t_vertical_local = magnitude*Vertical_Axis_Local
 
-          t_move = t_vertical_local + t_horiz_local
-          T_move[:3,3] = t_move
-          
-          # Get the target pose 
-          targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
-          rtde_help.goToPoseAdaptive(targetPose, time = 0.5) # EDIT TIME LINE
-          currentPose = rtde_help.getCurrentPose()
+        t_move = t_vertical_local + t_horiz_local
+        T_move[:3,3] = t_move
+        
+        # Get the target pose 
+        targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
+        print("X-position: ", currentPose.pose.position.x)
+        if DRY_RUN:
+            currentPose = simulate_step(currentPose, targetPose)
+        else:
+            rtde_help.goToPoseAdaptive(targetPose, time=0.5)
+            currentPose = rtde_help.getCurrentPose()
 
-          tolerance = 0.001 
-          while abs(currentPose.pose.position.z - targetPose.pose.position.z) >= tolerance:
-            rtde_help.goToPoseAdaptive(targetPose, time = 0.5) # EDIT TIME LINE
-            currentPose = rtde_help.getCurrentPose()     
+        tolerance = 0.001 
+        while abs(currentPose.pose.position.z - targetPose.pose.position.z) > tolerance:
+            if DRY_RUN:
+                currentPose = simulate_step(currentPose, targetPose)
+            else:
+                rtde_help.goToPoseAdaptive(targetPose, time=0.5)
+                currentPose = rtde_help.getCurrentPose()
+    
 
-          syncPub.publish(counter+1) ###############################
-          counter += 1
-          # Rotate the object before
-          R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, 
-                                                                                        T_start, R_relative, t_horiz_local, Vertical_Axis_Local) 
-          currentPose = rtde_help.getCurrentPose()
+        syncPub.publish(counter) ###############################
+        counter += 1
+        # Rotate the object before next motion segment
+        R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, 
+                                                                                      T_start, R_relative, t_horiz_local, Vertical_Axis_Local) 
+        print("overall_angle: ", overall_angle)
+        currentPose = rtde_help.getCurrentPose() # get the currentPose
    #######################################################################
     dataLoggerEnable(False) 
     rospy.sleep(0.2)
