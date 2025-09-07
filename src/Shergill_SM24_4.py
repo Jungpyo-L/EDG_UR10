@@ -94,8 +94,29 @@ def main(args):
     print(f"[DRY RUN] Simulated step → x={currentPose.pose.position.x:.3f}, "
           f"z={currentPose.pose.position.z:.3f}")
     return currentPose
+  
+  def pose_to_dict(pose_msg):
+    return {
+        "position": {
+            "x": pose_msg.pose.position.x,
+            "y": pose_msg.pose.position.y,
+            "z": pose_msg.pose.position.z,
+        },
+        "orientation": {
+            "x": pose_msg.pose.orientation.x,
+            "y": pose_msg.pose.orientation.y,
+            "z": pose_msg.pose.orientation.z,
+            "w": pose_msg.pose.orientation.w,
+        },
+        "header": {
+            "seq": pose_msg.header.seq,
+            "stamp": [pose_msg.header.stamp.secs, pose_msg.header.stamp.nsecs],
+            "frame_id": pose_msg.header.frame_id,
+        }
+    }
 
-  def RotationBaseCode(T_start, overall_angle, sign, delta_rotAngle = 2):
+
+  def RotationBaseCode(T_start, overall_angle, sign, delta_rotAngle = 3):
     adpt_help.dw = 0.01
     # Define and execute motion
     T_rot_step = adpt_help.get_Tmat_RotateInY(direction=sign) 
@@ -108,27 +129,21 @@ def main(args):
       rtde_help.goToPoseAdaptive(targetPose, time=0.05)
 
     # # Update angle
-    # currentPose = rtde_help.getCurrentPose()
-    # T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
-    # T_overall = np.linalg.inv(T_start) @ T_curr 
-    # new_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
-    # if T_overall[2, 0] > 0:  
-    #   new_angle = -new_angle
-    #   print("overall_angle: ", new_angle)
-
-    # Increment overall_angle by small step
-    # Update angle using atan2
     currentPose = rtde_help.getCurrentPose()
     T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
     T_overall = np.linalg.inv(T_start) @ T_curr 
-    new_angle = np.degrees(np.arctan2(T_overall[2,0], T_overall[2,2]))
+    new_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
+    if T_overall[2, 0] > 0:  
+      new_angle = -new_angle
+      #print("overall_angle: ", new_angle)
 
-    # R_relative = T_overall[:3,:3] 
-    return R_relative, new_angle
-     
-     
+    R_relative = T_overall[:3,:3] 
 
-  def Rotate(T_start, overall_angle, sign, delta_rotAngle = 2):
+    #print("overall_angle: ", overall_angle)
+    #print("R_relative: ", R_relative)
+    return R_relative, new_angle 
+
+  def Rotate(T_start, overall_angle, sign, delta_rotAngle = 3):
     starting_angle = overall_angle
     
     if sign == -1: 
@@ -145,10 +160,10 @@ def main(args):
   
   
   def RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, T_start, 
-                    R_relative, t_horiz_local, Vertical_Axis_Local, delta_rotAngle = 2):
+                    R_relative, t_horiz_local, Vertical_Axis_Local, delta_rotAngle = 3):
     dx = waypoint[0] - currentPose.pose.position.x
     dz = waypoint[2] - currentPose.pose.position.z
-    print("In RotationCheck!")
+    # print("In RotationCheck!")
 
     if abs(dx) < 1e-6:
       if DRY_RUN:
@@ -157,8 +172,8 @@ def main(args):
 
     vel = dz/dx 
     difference = np.abs(desired_vel) - np.abs(vel)
-    #print("Slope difference: ", difference)
-    #print("vel: ", vel)
+    print("Slope difference: ", difference)
+    # print("vel: ", vel)
     tolerance = 0.0001 
 
     if DRY_RUN:
@@ -234,7 +249,7 @@ def main(args):
     print('\n')
     input("Press <Enter> to go to PoseD")
     currentPose = rtde_help.getCurrentPose()
-    PositionD = [0.240, currentPose.pose.position.y, currentPose.pose.position.z] # approx 8 cm below surface of grains
+    PositionD = [0.240, currentPose.pose.position.y, currentPose.pose.position.z] # approx 7 cm below surface of grains
     OrientationD = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation 
     PoseD = rtde_help.getPoseObj(PositionD, OrientationD) 
     rtde_help.goToPose(PoseD)
@@ -250,13 +265,16 @@ def main(args):
     T_cumulative = np.eye(4) # cumulative transformation matrix
     T_move = np.eye(4) 
     overall_angle = 0 
-    beta = 25 # EDIT ME ###################
+    beta = 45 # EDIT ME ###################
     motion_segment = 0.03
+    delta_rotAngle = 3
+    args.angles = []
+    args.angles.append(overall_angle)
 
     # Define waypoint
-    waypoint = [0.340,0.230,0.260]; # EDIT THIS LINE
+    waypoint = [0.570,0.230,0.260]; # EDIT THIS LINE
     args.waypoint = waypoint
-    args.startPose = currentPose
+    args.startPose = pose_to_dict(currentPose)
 
     # Calculate thetadot (velocity, slope) from current position to waypoint
     desired_vel = (waypoint[2] - currentPose.pose.position.z)/(waypoint[0] - currentPose.pose.position.x)
@@ -274,11 +292,12 @@ def main(args):
     # FIRST TWO CM - NO ROTATION YET ########################################
     syncPub.publish(1)
     x_start = currentPose.pose.position.x
+    #print("current Z before: ", currentPose.pose.position.z)
     while currentPose.pose.position.x < x_start + motion_segment:
       adpt_help.dw = 0.01
       # Vertical adaptive motion 
       Fz = FT_help.averageFz_noOffset
-      print("Fz: ", Fz)
+     # print("Fz: ", Fz)
       T_normal = adpt_help.get_Tmat_axialMove(Fz, F_normalThres)
       # Combine the motion
       T_move = T_horiz_world @ T_normal
@@ -287,49 +306,53 @@ def main(args):
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
 
       if DRY_RUN:
-          currentPose = simulate_step(currentPose, targetPose)
+        currentPose = simulate_step(currentPose, targetPose)
       else:
-          rtde_help.goToPoseAdaptive(targetPose, time=0.5)
-          currentPose = rtde_help.getCurrentPose()
-
-      # rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
-      # currentPose = rtde_help.getCurrentPose()
-
-      tolerance = 0.001
-      while abs(currentPose.pose.position.z - targetPose.pose.position.z) > tolerance:
-        if DRY_RUN:
-            currentPose = simulate_step(currentPose, targetPose)
-        else:
-            rtde_help.goToPoseAdaptive(targetPose, time=0.5)
-            currentPose = rtde_help.getCurrentPose()
+        rtde_help.goToPoseAdaptive(targetPose, time=0.5)
+        currentPose = rtde_help.getCurrentPose()
+        tolerance = 0.001
+        while abs(currentPose.pose.position.z - targetPose.pose.position.z) > tolerance:
+          if DRY_RUN:
+              currentPose = simulate_step(currentPose, targetPose)
+          else:
+              rtde_help.goToPoseAdaptive(targetPose, time=0.5)
+              currentPose = rtde_help.getCurrentPose()
 
     syncPub.publish(2) # end of the first motion segment
-
-    input("Press <Enter> to start first rotation")
+    #print("current z: ", currentPose.pose.position.z)
+    #input("Press <Enter> to start first rotation")
     # First rotation
     R_relative = np.eye(3);
     t_horiz_local = np.array([-0.01, 0, 0])
     Vertical_Axis_Local = np.array([0, 0, 1])
+    # currentPose = rtde_help.getCurrentPose()
+    # R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta,
+    #                                                                                T_start, R_relative, t_horiz_local, Vertical_Axis_Local)
+    #print("overall angle: ", overall_angle)
+    # rospy.sleep(2)
+    #input("Press <Enter> to start motion after rotation")
     currentPose = rtde_help.getCurrentPose()
-    R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta,
-                                                                                   T_start, R_relative, t_horiz_local, Vertical_Axis_Local)
-    print("overall angle: ", overall_angle)
-    input("Press <Enter> to start motion after rotation")
-    currentPose = rtde_help.getCurrentPose()
+    currentPoseArray = np.array([currentPose.pose.position.x, currentPose.pose.position.y, currentPose.pose.position.z])
+    print("currentPoseArray: ", currentPoseArray)
     counter = 3
+    #print("currentPose pre loop: ", )
     while currentPose.pose.position.x < waypoint[0]:
+      R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, 
+                                                                                    T_start, R_relative, t_horiz_local, Vertical_Axis_Local) 
+      rospy.sleep(2)
+      currentPose = rtde_help.getCurrentPose() # get the currentPose
       x_start = currentPose.pose.position.x
       x_end = min(x_start + motion_segment, waypoint[0]) # x_start (wherever we are) + 2 cm
       syncPub.publish(counter) #################################
       counter += 1
       FT_help.setNowAsBias()
       T_move = np.eye(4) 
+      #print("Z-position before: ", currentPose.pose.position.z)
       while currentPose.pose.position.x < x_end: # MOTION FOR TWO CM
-        print("In the motion sequence!")
         F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
         F_vertical_world = np.array([0,0, F_world[2]]) 
         F_vertical_local = R_relative.T @ F_vertical_world
-        #print("F_vertical_local: ", F_vertical_local[2]) 
+        #print("Fz: ", F_vertical_local[2]) 
         
         T_normal = adpt_help.get_Tmat_axialMove(F_vertical_local[2], F_normalThres)
         t_vertical_local = T_normal[:3, 3]
@@ -341,29 +364,34 @@ def main(args):
         
         # Get the target pose 
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
-        print("X-position: ", currentPose.pose.position.x)
+        # print("Z-position before: ", currentPose.pose.position.z)
         if DRY_RUN:
-            currentPose = simulate_step(currentPose, targetPose)
+          currentPose = simulate_step(currentPose, targetPose)
         else:
-            rtde_help.goToPoseAdaptive(targetPose, time=0.5)
-            currentPose = rtde_help.getCurrentPose()
+          rtde_help.goToPoseAdaptive(targetPose, time=0.5)
+          currentPose = rtde_help.getCurrentPose()
+          tolerance = 0.001 
+          while abs(currentPose.pose.position.z - targetPose.pose.position.z) > tolerance:
+              if DRY_RUN:
+                  currentPose = simulate_step(currentPose, targetPose)
+              else:
+                  rtde_help.goToPoseAdaptive(targetPose, time=0.5)
+                  currentPose = rtde_help.getCurrentPose()
+        
+        
+      #print("X-position after: ", currentPose.pose.position.x)
+      print("Z-position after: ", currentPose.pose.position.z)
+      syncPub.publish(counter) ###############################
+      counter += 1
+      # Rotate the object before next motion segment
+      #print("Rotation after motion!")
+      # R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, 
+      #                                                                               T_start, R_relative, t_horiz_local, Vertical_Axis_Local) 
+      print("overall_angle after RotationCheck Call: ", overall_angle)
+      args.angles.append(overall_angle)
 
-        tolerance = 0.001 
-        while abs(currentPose.pose.position.z - targetPose.pose.position.z) > tolerance:
-            if DRY_RUN:
-                currentPose = simulate_step(currentPose, targetPose)
-            else:
-                rtde_help.goToPoseAdaptive(targetPose, time=0.5)
-                currentPose = rtde_help.getCurrentPose()
-    
-
-        syncPub.publish(counter) ###############################
-        counter += 1
-        # Rotate the object before next motion segment
-        R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, 
-                                                                                      T_start, R_relative, t_horiz_local, Vertical_Axis_Local) 
-        print("overall_angle: ", overall_angle)
-        currentPose = rtde_help.getCurrentPose() # get the currentPose
+      currentPose = rtde_help.getCurrentPose() # get the currentPose
+      # rospy.sleep(2)
    #######################################################################
     dataLoggerEnable(False) 
     rospy.sleep(0.2)
@@ -375,9 +403,11 @@ def main(args):
     else:
       print("Waypoint not reached!")
       print("Waypoint: ", waypoint)
-      print("currentPose: ", currentPose)
+      currentPoseArray = np.array([currentPose.pose.position.x, currentPose.pose.position.y, currentPose.pose.position.z])
+      print("currentPose: ", currentPoseArray)
       
-    args.endPose = currentPose
+    args.endPose = pose_to_dict(currentPose)
+    args.endAngle = overall_angle - delta_rotAngle
     # save data and clear the temporary folder
     file_help.saveDataParams(args, appendTxt='beta_'+str(args.beta)+'_DEMO_trial_'+str(args.trialNum)+'_Shergill')
     file_help.clearTmpFolder()
@@ -385,7 +415,7 @@ def main(args):
       return
   except KeyboardInterrupt:
       return  
-        # NEED TO ENABLE DATALOGGER
+
 
 if __name__ == '__main__':
   import argparse
