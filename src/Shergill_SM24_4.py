@@ -147,12 +147,16 @@ def main(args):
     starting_angle = overall_angle
     
     if sign == -1: 
-      while overall_angle > starting_angle - delta_rotAngle: # negative rotation
+      while overall_angle > starting_angle - delta_rotAngle: # negative rotation, CCW
         R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
 
     elif sign == 1:
-      while overall_angle < starting_angle + delta_rotAngle: # positive rotation
-        R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
+      if beta == 45 and overall_angle == 0:
+        while overall_angle < 22.5:
+          R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
+      else:
+        while overall_angle < starting_angle + delta_rotAngle: # positive rotation, CW
+          R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
   
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
     Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
@@ -163,6 +167,7 @@ def main(args):
                     R_relative, t_horiz_local, Vertical_Axis_Local, delta_rotAngle = 3):
     dx = waypoint[0] - currentPose.pose.position.x
     dz = waypoint[2] - currentPose.pose.position.z
+    print("currentPose used in Rotation Check: ", np.array([currentPose.pose.position.x, currentPose.pose.position.z]))
     # print("In RotationCheck!")
 
     if abs(dx) < 1e-6:
@@ -184,7 +189,7 @@ def main(args):
     if desired_vel < 0: # waypoint is below x=0
       if difference > tolerance: # less negative slope than desired
         sign = -1
-        if overall_angle - delta_rotAngle < -30.5:
+        if overall_angle - delta_rotAngle < -32:
           if DRY_RUN: print("[RotationCheck] Skipping: would exceed -30°")
           return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
         
@@ -193,7 +198,7 @@ def main(args):
 
       elif difference < tolerance: # steeper slope than desired
           sign = 1
-          if overall_angle + delta_rotAngle > 30.5:
+          if overall_angle + delta_rotAngle > 32:
             if DRY_RUN: print("[RotationCheck] Skipping: would exceed +30°")
             return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
           
@@ -265,20 +270,20 @@ def main(args):
     T_cumulative = np.eye(4) # cumulative transformation matrix
     T_move = np.eye(4) 
     overall_angle = 0 
-    beta = 45 # EDIT ME ###################
+    beta = 25 # EDIT ME ###################
     motion_segment = 0.03
     delta_rotAngle = 3
     args.angles = []
     args.angles.append(overall_angle)
 
     # Define waypoint
-    waypoint = [0.570,0.230,0.260]; # EDIT THIS LINE
+    waypoint = [0.660,0.230,0.260]; # EDIT THIS LINE
     args.waypoint = waypoint
     args.startPose = pose_to_dict(currentPose)
 
     # Calculate thetadot (velocity, slope) from current position to waypoint
     desired_vel = (waypoint[2] - currentPose.pose.position.z)/(waypoint[0] - currentPose.pose.position.x)
-    # print("desired velocity = ", desired_vel)
+    print("desired velocity = ", desired_vel)
     
     #MOTION SEQUENCE BEGINS
     # ZERO GRAVITY AND OTHER FORCES
@@ -348,6 +353,7 @@ def main(args):
       FT_help.setNowAsBias()
       T_move = np.eye(4) 
       #print("Z-position before: ", currentPose.pose.position.z)
+      #print("X and Z-position before: ", np.array([currentPose.pose.position.x, currentPose.pose.position.z]))
       while currentPose.pose.position.x < x_end: # MOTION FOR TWO CM
         F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
         F_vertical_world = np.array([0,0, F_world[2]]) 
@@ -380,14 +386,14 @@ def main(args):
         
         
       #print("X-position after: ", currentPose.pose.position.x)
-      print("Z-position after: ", currentPose.pose.position.z)
+      print("X and Z-position after: ", np.array([currentPose.pose.position.x, currentPose.pose.position.z]))
       syncPub.publish(counter) ###############################
       counter += 1
       # Rotate the object before next motion segment
       #print("Rotation after motion!")
       # R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = RotationCheck(currentPose, waypoint, desired_vel, overall_angle, beta, 
       #                                                                               T_start, R_relative, t_horiz_local, Vertical_Axis_Local) 
-      print("overall_angle after RotationCheck Call: ", overall_angle)
+      #print("overall_angle after RotationCheck Call: ", overall_angle)
       args.angles.append(overall_angle)
 
       currentPose = rtde_help.getCurrentPose() # get the currentPose
