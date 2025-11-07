@@ -204,6 +204,21 @@ def main(args):
           
           if DRY_RUN: print("[RotationCheck] Decision → rotate positive (sign=+1)")
           R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
+    
+    if desired_vel >= 0: # waypoint is above x=0 or at x = 0
+      if difference > tolerance:
+        sign = 1
+        if overall_angle + delta_rotAngle > 32:
+          return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+        
+        R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
+      
+      elif difference > tolerance:
+        sign = -1
+        if overall_angle - delta_rotAngle < -32:
+          return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+        
+        R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
 
     return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
 
@@ -222,7 +237,7 @@ def main(args):
   # Pose B has to be defined relative to A so it is defined during the motion sequence
 
   # We descend into media. No rotation. 
-  PositionC = [0.200, -0.230, 0.270] # approx 7 cm below surface of grains, edit to 0.270
+  PositionC = [0.240, -0.230, 0.270] # approx 7 cm below surface of grains, edit to 0.270
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
 
@@ -238,7 +253,7 @@ def main(args):
     # POSE B
     input("Press <Enter> to go to PoseB")
     currentPose = rtde_help.getCurrentPose()
-    PositionB = [0.200, -0.230, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
+    PositionB = [0.240, -0.230, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
     OrientationB = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi,'sxyz') #static (s) rotating (r)
     #   Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
     PoseB = rtde_help.getPoseObj(PositionB, OrientationB)
@@ -254,7 +269,7 @@ def main(args):
     print('\n')
     input("Press <Enter> to go to PoseD")
     currentPose = rtde_help.getCurrentPose()
-    PositionD = [0.240, currentPose.pose.position.y, currentPose.pose.position.z] # approx 7 cm below surface of grains
+    PositionD = [0.280, currentPose.pose.position.y, currentPose.pose.position.z] # approx 7 cm below surface of grains
     OrientationD = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation 
     PoseD = rtde_help.getPoseObj(PositionD, OrientationD) 
     rtde_help.goToPose(PoseD)
