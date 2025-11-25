@@ -358,9 +358,9 @@ def main(args):
       # if overall_angle >= 12.5:
       #   rtde_help.stopAtCurrPoseAdaptive()
       #   break
-  #  #######################################################################################
-  #  #  ADAPTIVE HORIZONTAL MOTION: ONE AFTER ROTATION 1  --> WORLD FRAME MOTION IN LOCAL FRAME #
-  #  # #######################################################################################
+   #######################################################################################
+   #  ADAPTIVE HORIZONTAL MOTION: ONE AFTER ROTATION 1  --> WORLD FRAME MOTION IN LOCAL FRAME #
+   # #######################################################################################
 
     # PRINT OVERALL ANGLE
     R_relative = T_overall[:3,:3] 

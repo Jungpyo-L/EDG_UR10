@@ -151,12 +151,12 @@ def main(args):
         R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
 
     elif sign == 1:
-      if beta == 45 and overall_angle == 0:
-        while overall_angle < 22.5:
-          R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
-      else:
-        while overall_angle < starting_angle + delta_rotAngle: # positive rotation, CW
-          R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
+      # if beta == 45 and overall_angle == 0:
+      #   while overall_angle < 22.5:
+      #     R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
+      #  else:
+      while overall_angle < starting_angle + delta_rotAngle: # positive rotation, CW
+        R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
   
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
     Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
@@ -190,22 +190,18 @@ def main(args):
       if difference > tolerance: # less negative slope than desired
         sign = -1
         if overall_angle - delta_rotAngle < -32:
-          if DRY_RUN: print("[RotationCheck] Skipping: would exceed -30°")
           return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
         
-        if DRY_RUN: print("[RotationCheck] Decision → rotate negative (sign=-1)")
         R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
 
       elif difference < tolerance: # steeper slope than desired
-          sign = 1
-          if overall_angle + delta_rotAngle > 32:
-            if DRY_RUN: print("[RotationCheck] Skipping: would exceed +30°")
-            return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+        sign = 1
+        if overall_angle + delta_rotAngle > 32:
+          return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
           
-          if DRY_RUN: print("[RotationCheck] Decision → rotate positive (sign=+1)")
-          R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
+        R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
     
-    if desired_vel >= 0: # waypoint is above x=0 or at x = 0
+    if desired_vel > 0: # waypoint is above x=0 
       if difference > tolerance:
         sign = 1
         if overall_angle + delta_rotAngle > 32:
@@ -213,9 +209,23 @@ def main(args):
         
         R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
       
-      elif difference > tolerance:
+      elif difference < tolerance:
         sign = -1
         if overall_angle - delta_rotAngle < -32:
+          return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+        
+        R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
+
+    if desired_vel == 0:
+      if vel < tolerance:
+        sign = -1
+        if overall_angle - delta_rotAngle < -32:
+          return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
+        
+        R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
+      elif vel > tolerance:
+        sign = 1
+        if overall_angle + delta_rotAngle > 32:
           return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
         
         R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
@@ -292,7 +302,7 @@ def main(args):
     args.angles.append(overall_angle)
 
     # Define waypoint
-    waypoint = [0.660,0.230,0.260]; # EDIT THIS LINE
+    waypoint = [0.660,0.230,0.270]; # EDIT THIS LINE
     args.waypoint = waypoint
     args.startPose = pose_to_dict(currentPose)
 
