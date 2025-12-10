@@ -147,16 +147,22 @@ def main(args):
     starting_angle = overall_angle
     
     if sign == -1: 
+      # if beta == 45 and (0 <= overall_angle < 22.5):
+      #   while overall_angle >= 0:
+      #     R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
+      # else:
+      #   while overall_angle > starting_angle - delta_rotAngle: # negative rotation, CCW
+      #     R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
       while overall_angle > starting_angle - delta_rotAngle: # negative rotation, CCW
         R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
 
     elif sign == 1:
-      # if beta == 45 and overall_angle == 0:
-      #   while overall_angle < 22.5:
-      #     R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
-      #  else:
-      while overall_angle < starting_angle + delta_rotAngle: # positive rotation, CW
-        R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
+      if beta == 45 and (0 <= overall_angle < 22.5):
+        while overall_angle < 22.5:
+          R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
+      else:
+        while overall_angle < starting_angle + delta_rotAngle: # positive rotation, CW
+          R_relative, overall_angle = RotationBaseCode(T_start, overall_angle, sign)
   
     t_horiz_local = R_relative.T @ np.array([-0.01, 0, 0]) 
     Vertical_Axis_Local = R_relative.T @ np.array([0,0,1]) 
@@ -177,6 +183,8 @@ def main(args):
 
     vel = dz/dx 
     difference = np.abs(desired_vel) - np.abs(vel)
+    print("overall_angle: ", overall_angle)
+    print("vel: ", vel)
     print("Slope difference: ", difference)
     # print("vel: ", vel)
     tolerance = 0.0001 
@@ -217,13 +225,13 @@ def main(args):
         R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
 
     if desired_vel == 0:
-      if vel < tolerance:
+      if vel > tolerance:
         sign = -1
         if overall_angle - delta_rotAngle < -32:
           return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
         
         R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle = Rotate(T_start, overall_angle, sign)
-      elif vel > tolerance:
+      elif vel < tolerance:
         sign = 1
         if overall_angle + delta_rotAngle > 32:
           return R_relative, t_horiz_local, Vertical_Axis_Local, overall_angle
@@ -295,7 +303,8 @@ def main(args):
     T_cumulative = np.eye(4) # cumulative transformation matrix
     T_move = np.eye(4) 
     overall_angle = 0 
-    beta = 25 # EDIT ME ###################
+    tol = 0.0001 
+    beta = 45 # EDIT ME ###################
     motion_segment = 0.03
     delta_rotAngle = 3
     args.angles = []
@@ -308,6 +317,8 @@ def main(args):
 
     # Calculate thetadot (velocity, slope) from current position to waypoint
     desired_vel = (waypoint[2] - currentPose.pose.position.z)/(waypoint[0] - currentPose.pose.position.x)
+    if desired_vel < tol:
+      desired_vel = 0
     print("desired velocity = ", desired_vel)
     
     #MOTION SEQUENCE BEGINS
