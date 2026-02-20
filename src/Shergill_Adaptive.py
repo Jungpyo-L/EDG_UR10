@@ -165,7 +165,7 @@ def main(args):
   PoseA = rtde_help.getPoseObj(PositionA, OrientationA)
 
   # We descend into media. No rotation. 
-  PositionC = [0.24, -0.230, 0.270] # originally 0.27 for z, x = 0.2
+  PositionC = [0.41, -0.230, 0.27] # originally 0.27 for z, x = 0.2
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
   #############################################################################################################################
@@ -181,7 +181,7 @@ def main(args):
     # POSE B
     input("Press <Enter> to go to PoseB")
     currentPose = rtde_help.getCurrentPose()
-    PositionB = [0.24, -0.230, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
+    PositionB = [0.41, -0.230, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
     OrientationB = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi,'sxyz') #static (s) rotating (r)
     #   Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
     PoseB = rtde_help.getPoseObj(PositionB, OrientationB)
@@ -198,7 +198,7 @@ def main(args):
     # POSE D
     input("Press <Enter> to go to PoseD")
     currentPose = rtde_help.getCurrentPose()
-    PositionD = [0.280, currentPose.pose.position.y, currentPose.pose.position.z] # approx 8 cm below surface of grains
+    PositionD = [0.45, currentPose.pose.position.y, currentPose.pose.position.z] # approx 8 cm below surface of grains
     OrientationD = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation 
     PoseD = rtde_help.getPoseObj(PositionD, OrientationD) 
     rtde_help.goToPose(PoseD)
@@ -228,7 +228,7 @@ def main(args):
     formatted_rows = ' ; '.join(formatted_rows)
     print(formatted_rows) 
     args.RotationMatrices.append(formatted_rows)
-    args.RotationAngles = [25]  # EDIT ME ##########
+    args.RotationAngles = [60]  # EDIT ME ##########
     # Order 1: 0, 12.5, 20, -12.5, -20, -5, 5
     # Order 2: 5, -5, -12.5, 20, -20, 12.5, 0
     # 15 deg beta rot angles: 0 +/- 7.5 +/- 12 +/- 3
@@ -241,9 +241,9 @@ def main(args):
     # ADAPTIVE MOTION: ZERO WHILE LATERAL MOVEMENT HAPPENS #
     ##################################################   
 ##################### IF ROTATION HAPPENS FIRST ############################
-    while overall_angle < 9: # negative rotation
+    while overall_angle > -7.5: # negative rotation
         adpt_help.dw = 0.01
-        T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # EDIT LINE: (-) Y-direction  
+        T_rot_step = adpt_help.get_Tmat_RotateInY(direction=-1) # EDIT LINE: (-) Y-direction  
         currentPose = rtde_help.getCurrentPose()
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
         rtde_help.goToPoseAdaptive(targetPose, time=0.05)
@@ -273,7 +273,7 @@ def main(args):
     starting_x = currentPose.pose.position.x
 
     syncPub.publish(1) # 1
-    while currentPose.pose.position.x < starting_x + 0.25: # EDIT THIS LINE 
+    while currentPose.pose.position.x < starting_x + 0.2: # EDIT THIS LINE 
       F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
       F_vertical_world = np.array([0,0, F_world[2]]) 
       F_vertical_local = R_relative.T @ F_vertical_world

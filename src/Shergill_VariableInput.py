@@ -87,7 +87,7 @@ def main(args):
   # Pose B has to be defined relative to A so it is defined during the motion sequence
 
   # We descend into media. No rotation. EDIT Z BELOW TO CHANGE THE INITIAL DEPTH
-  PositionC = [0.240, -0.230, 0.270] # approx 8 cm below surface of grains, 0.26?
+  PositionC = [0.410, -0.230, 0.26] # approx 8 cm below surface of grains, 0.26?
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
 
@@ -101,7 +101,7 @@ def main(args):
     # POSE B
     input("Press <Enter> to go to PoseB")
     currentPose = rtde_help.getCurrentPose()
-    PositionB = [0.240, -0.230, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
+    PositionB = [0.410, -0.230, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
     OrientationB = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi,'sxyz') #static (s) rotating (r)
     #   Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
     PoseB = rtde_help.getPoseObj(PositionB, OrientationB)
@@ -118,7 +118,7 @@ def main(args):
     print('\n')
     input("Press <Enter> to go to PoseD")
     currentPose = rtde_help.getCurrentPose()
-    PositionD = [0.280, currentPose.pose.position.y, currentPose.pose.position.z] # approx 8 cm below surface of grains
+    PositionD = [0.450, currentPose.pose.position.y, 0.26] # approx 8 cm below surface of grains
     OrientationD = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation 
     PoseD = rtde_help.getPoseObj(PositionD, OrientationD) 
     rtde_help.goToPose(PoseD)
@@ -149,9 +149,9 @@ def main(args):
     ################################################################################
     #################### ROTATION FIRST ###########################################
     ################################################################################
-    while overall_angle < 9: # EDIT THIS LINE
+    while overall_angle < 12.5: # EDIT THIS LINE
         adpt_help.dw = 0.01
-        T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # EDIT LINE: (-) Y-direction  
+        T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # EDIT LINE: 
         currentPose = rtde_help.getCurrentPose()
         targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
         rtde_help.goToPoseAdaptive(targetPose, time=0.05)
@@ -181,7 +181,7 @@ def main(args):
     starting_x = currentPose.pose.position.x
 
     syncPub.publish(1) # 1
-    while currentPose.pose.position.x < starting_x + 0.25: # EDIT THIS LINE 
+    while currentPose.pose.position.x < starting_x + 0.2: # EDIT THIS LINE 
       F_world = R_relative @ np.array([FT_help.averageFx_noOffset, FT_help.averageFy_noOffset, FT_help.averageFz_noOffset])
       F_vertical_world = np.array([0,0, F_world[2]]) 
       F_vertical_local = R_relative.T @ F_vertical_world
@@ -208,30 +208,30 @@ def main(args):
     syncPub.publish(2) # end of the first motion segment
       
 # # #  ######################################## IF NO BEGINNING ROTATION ########################################
-    starting_x = currentPose.pose.position.x
-    syncPub.publish(1)
-    while currentPose.pose.position.x < starting_x + 0.1:
-      adpt_help.dw = 0.01
-      # Vertical adaptive motion 
-      Fz = FT_help.averageFz_noOffset
-      print("Fz: ", Fz)
-      T_normal = adpt_help.get_Tmat_axialMove(Fz, F_normalThres)
-      # Combine the motion
-      T_move = T_horiz_world @ T_normal
+    # starting_x = currentPose.pose.position.x
+    # syncPub.publish(1)
+    # while currentPose.pose.position.x < starting_x + 0.1:
+    #   adpt_help.dw = 0.01
+    #   # Vertical adaptive motion 
+    #   Fz = FT_help.averageFz_noOffset
+    #   print("Fz: ", Fz)
+    #   T_normal = adpt_help.get_Tmat_axialMove(Fz, F_normalThres)
+    #   # Combine the motion
+    #   T_move = T_horiz_world @ T_normal
 
-      # Get the target pose 
-      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
-        #print(" ###################### targetPose z: ", targetPose.pose.position.z)
-      rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
-      currentPose = rtde_help.getCurrentPose()
+    #   # Get the target pose 
+    #   targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_move, currentPose)
+    #     #print(" ###################### targetPose z: ", targetPose.pose.position.z)
+    #   rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
+    #   currentPose = rtde_help.getCurrentPose()
 
-      # Fulfill the vertical motion
-      tolerance = 0.0010 # I'll adjust this if I start moving into cm territory
-        #print('difference: ', abs(currentPose.pose.position.z - targetPose.pose.position.z))
-      while abs(currentPose.pose.position.z - targetPose.pose.position.z) > tolerance:
-        rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
-        currentPose = rtde_help.getCurrentPose()
-    syncPub.publish(2) # end of the first motion segment
+    #   # Fulfill the vertical motion
+    #   tolerance = 0.0010 # I'll adjust this if I start moving into cm territory
+    #     #print('difference: ', abs(currentPose.pose.position.z - targetPose.pose.position.z))
+    #   while abs(currentPose.pose.position.z - targetPose.pose.position.z) > tolerance:
+    #     rtde_help.goToPoseAdaptive(targetPose, time = 0.5)
+    #     currentPose = rtde_help.getCurrentPose()
+    # syncPub.publish(2) # end of the first motion segment
 
 
   #######################################################################
@@ -245,7 +245,7 @@ def main(args):
     print("============ Python UR_Interface demo complete!")
 
     # save data and clear the temporary folder
-    file_help.saveDataParams(args, appendTxt='beta_'+str(args.beta)+'_VERTICAL_trial_'+str(args.trialNum)+'_Shergill_Snout_Experiment')
+    file_help.saveDataParams(args, appendTxt='beta_'+str(args.beta)+'_VariableInput_trial_'+str(args.trialNum)+'_Shergill_Snout_Experiment')
     file_help.clearTmpFolder()
 
   except rospy.ROSInterruptException:
