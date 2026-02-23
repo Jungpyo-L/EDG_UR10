@@ -89,8 +89,8 @@ def capture_digit_image_service(req):
     try:
         imgs = []
         times = []
-        for i in range(test_config.SAVE_FRAMES_GRATING):
-        # for i in range(test_config.SAVE_FRAMES):
+        # for i in range(test_config.SAVE_FRAMES_GRATING):
+        for i in range(test_config.SAVE_FRAMES):
             msg = rospy.wait_for_message("/digitFrame", Image, timeout=2.0)
             ros_time = msg.header.stamp
             img = bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
