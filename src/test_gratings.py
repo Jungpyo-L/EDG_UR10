@@ -101,7 +101,10 @@ def main(args):
   # orientationA = tf.transformations.quaternion_from_euler(np.pi-.002,0.01,-np.pi/2,'sxyz') # pu S3
   # orientationA = tf.transformations.quaternion_from_euler(np.pi-.001,-0.014,-np.pi/2,'sxyz') # si S1
   # orientationA = tf.transformations.quaternion_from_euler(np.pi-.02,-0.016,-np.pi/2,'sxyz') # si S2
-  orientationA = tf.transformations.quaternion_from_euler(np.pi-0.035,0.00,-np.pi/2,'sxyz') # si S3
+  # orientationA = tf.transformations.quaternion_from_euler(np.pi-0.035,0.00,-np.pi/2,'sxyz') # si S3
+  # orientationA = tf.transformations.quaternion_from_euler(np.pi-0.0,-0.014,-np.pi/2,'sxyz') # pusoft S1
+  # orientationA = tf.transformations.quaternion_from_euler(np.pi-0.0,-0.004,-np.pi/2,'sxyz') # pusoft S2
+  orientationA = tf.transformations.quaternion_from_euler(np.pi-0.005,-0.01,-np.pi/2,'sxyz') # pusoft S3
   poseA = rtde_help.getPoseObj(positionA, orientationA)
 
   # pose B is loaded pose
@@ -210,6 +213,10 @@ if __name__ == '__main__':
   parser.add_argument('--bool', type=bool, help='argument for bool type', default= True)
   parser.add_argument('--fileName', type=str, help='file name for saving data', default= None)
   parser.add_argument('--speed', type=int, help='speed multiplier', default=1)
+  parser.add_argument('--force', type=float, help='force threshold used for loading', default=10.0)
+  parser.add_argument('--material', type=str, help='material name for logging', default= "material")
+  parser.add_argument('--period', type=float, help='periodicity of grating for logging', default= 9.9)
+  parser.add_argument('--amplitude', type=float, help='amplitude of grating for logging', default= 9.9)
 
   args = parser.parse_args()    
   main(args)
