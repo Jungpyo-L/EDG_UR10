@@ -87,7 +87,7 @@ def main(args):
   # Pose B has to be defined relative to A so it is defined during the motion sequence
 
   # We descend into media. No rotation. EDIT Z BELOW TO CHANGE THE INITIAL DEPTH
-  PositionC = [0.410, -0.230, 0.26] # approx 8 cm below surface of grains, 0.26?
+  PositionC = [0.410, -0.230, 0.24] # approx 8 cm below surface of grains, 0.26?
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
 
@@ -149,7 +149,7 @@ def main(args):
     ################################################################################
     #################### ROTATION FIRST ###########################################
     ################################################################################
-    while overall_angle < 12.5: # EDIT THIS LINE
+    while overall_angle < 22.5: # EDIT THIS LINE
         adpt_help.dw = 0.01
         T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # EDIT LINE: 
         currentPose = rtde_help.getCurrentPose()

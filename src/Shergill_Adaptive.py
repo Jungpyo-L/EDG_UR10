@@ -228,7 +228,7 @@ def main(args):
     formatted_rows = ' ; '.join(formatted_rows)
     print(formatted_rows) 
     args.RotationMatrices.append(formatted_rows)
-    args.RotationAngles = [60]  # EDIT ME ##########
+    args.RotationAngles = [15]  # EDIT ME ##########
     # Order 1: 0, 12.5, 20, -12.5, -20, -5, 5
     # Order 2: 5, -5, -12.5, 20, -20, 12.5, 0
     # 15 deg beta rot angles: 0 +/- 7.5 +/- 12 +/- 3
@@ -241,7 +241,7 @@ def main(args):
     # ADAPTIVE MOTION: ZERO WHILE LATERAL MOVEMENT HAPPENS #
     ##################################################   
 ##################### IF ROTATION HAPPENS FIRST ############################
-    while overall_angle > -7.5: # negative rotation
+    while overall_angle > -12: # negative rotation
         adpt_help.dw = 0.01
         T_rot_step = adpt_help.get_Tmat_RotateInY(direction=-1) # EDIT LINE: (-) Y-direction  
         currentPose = rtde_help.getCurrentPose()
