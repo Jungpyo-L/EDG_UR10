@@ -304,7 +304,7 @@ def main(args):
     T_move = np.eye(4) 
     overall_angle = 0 
     tol = 0.0001 
-    beta = 25 # EDIT ME ###################
+    beta = 45 # EDIT ME ###################
     motion_segment = 0.03
     delta_rotAngle = 3
     args.angles = []
