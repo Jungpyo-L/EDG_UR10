@@ -304,14 +304,14 @@ def main(args):
     T_move = np.eye(4) 
     overall_angle = 0 
     tol = 0.0001 
-    beta = 45 # EDIT ME ###################
+    beta = 25 # EDIT ME ###################
     motion_segment = 0.03
     delta_rotAngle = 3
     args.angles = []
     args.angles.append(overall_angle)
 
     # Define waypoint
-    waypoint = [0.760, -0.230, 0.270]; # EDIT THIS LINE
+    waypoint = [0.760, -0.230, 0.260]; # EDIT THIS LINE
     args.waypoint = waypoint
     args.startPose = pose_to_dict(currentPose)
 
