@@ -165,7 +165,7 @@ def main(args):
     formatted_rows = ' ; '.join(formatted_rows)
     print(formatted_rows) 
     args.RotationMatrices.append(formatted_rows)
-    args.RotationAngles = [7.5] # EDIT LINE, in degs 
+    args.RotationAngles = [-7.5] # EDIT LINE, in degs 
     # [0, 22.5, 36, -22.5, -36, -9, 9]
     # 36, 9, -22.5, -36, 0, -9, 22.5
   # ##################################################
@@ -173,8 +173,8 @@ def main(args):
   # #                   # IF WE DON'T START WITH 0 DEG      #
   # ##################################################
     adpt_help.dw = 0.01
-    while overall_angle < 7.5:
-      T_rot_step = adpt_help.get_Tmat_RotateInY(direction=1) # Positive Y-direction  
+    while overall_angle > -7.5:
+      T_rot_step = adpt_help.get_Tmat_RotateInY(direction=-1) # Positive Y-direction  
       currentPose = rtde_help.getCurrentPose()
       targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
       rtde_help.goToPoseAdaptive(targetPose, time=0.05)

@@ -187,7 +187,7 @@ def main(args):
     print("vel: ", vel)
     print("Slope difference: ", difference)
     # print("vel: ", vel)
-    tolerance = 0.0001 
+    tolerance = 0.001 
 
     if DRY_RUN:
       print(f"[RotationCheck] current_angle={overall_angle:.2f}°, "
@@ -303,21 +303,22 @@ def main(args):
     T_cumulative = np.eye(4) # cumulative transformation matrix
     T_move = np.eye(4) 
     overall_angle = 0 
-    tol = 0.0001 
-    beta = 25 # EDIT ME ###################
+    tol = 0.001 
     motion_segment = 0.03
     delta_rotAngle = 3
     args.angles = []
     args.angles.append(overall_angle)
 
+    beta = 45 # EDIT ME ###################
     # Define waypoint
-    waypoint = [0.760, -0.230, 0.260]; # EDIT THIS LINE
+    waypoint = [0.760, -0.230, 0.280]; # EDIT THIS LINE
     args.waypoint = waypoint
     args.startPose = pose_to_dict(currentPose)
 
     # Calculate thetadot (velocity, slope) from current position to waypoint
     desired_vel = (waypoint[2] - currentPose.pose.position.z)/(waypoint[0] - currentPose.pose.position.x)
-    if desired_vel < tol:
+    print("desired_vel before check: ", desired_vel)
+    if np.abs(desired_vel) < tol:
       desired_vel = 0
     print("desired velocity = ", desired_vel)
     
@@ -447,6 +448,7 @@ def main(args):
       print("Waypoint: ", waypoint)
       currentPoseArray = np.array([currentPose.pose.position.x, currentPose.pose.position.y, currentPose.pose.position.z])
       print("currentPose: ", currentPoseArray)
+      print("Desired velocity: ", desired_vel)
       
     args.endPose = pose_to_dict(currentPose)
     args.endAngle = overall_angle - delta_rotAngle
