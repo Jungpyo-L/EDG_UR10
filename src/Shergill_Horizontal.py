@@ -96,7 +96,7 @@ def main(args):
   # Pose B has to be defined relative to A so it is defined during the motion sequence
 
   # We descend into media. No rotation. 
-  PositionC = [0.340, -0.230, 0.270] # approx 8 cm below surface of grains, 0.26?
+  PositionC = [0.425, -0.230, 0.18] # approx 8 cm below surface of grains, 0.26?
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
   ##################################################
@@ -113,7 +113,7 @@ def main(args):
     # POSE B
     input("Press <Enter> to go to PoseB")
     currentPose = rtde_help.getCurrentPose()
-    PositionB = [0.340, -0.230, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
+    PositionB = [0.425, -0.230, currentPose.pose.position.z] # change the first two parameters to be the "beginning of the tank"
     OrientationB = tf.transformations.quaternion_from_euler(np.pi, 0,-np.pi,'sxyz') #static (s) rotating (r)
     #   Note the new coordinates: x is pointing to us, y is pointing to the left, and z is pointing down.
     PoseB = rtde_help.getPoseObj(PositionB, OrientationB)
@@ -129,7 +129,7 @@ def main(args):
     print('\n')
     input("Press <Enter> to go to PoseD")
     currentPose = rtde_help.getCurrentPose()
-    PositionD = [0.380, currentPose.pose.position.y, currentPose.pose.position.z] # approx 8 cm below surface of grains
+    PositionD = [0.455, currentPose.pose.position.y, currentPose.pose.position.z] # approx 8 cm below surface of grains
     OrientationD = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation 
     PoseD = rtde_help.getPoseObj(PositionD, OrientationD) 
     rtde_help.goToPose(PoseD)
@@ -165,82 +165,83 @@ def main(args):
     formatted_rows = ' ; '.join(formatted_rows)
     print(formatted_rows) 
     args.RotationMatrices.append(formatted_rows)
-    args.RotationAngles = [-7.5] # EDIT LINE, in degs 
+    args.RotationAngles = [15] # EDIT LINE, in degs 
     # [0, 22.5, 36, -22.5, -36, -9, 9]
     # 36, 9, -22.5, -36, 0, -9, 22.5
+    # 5mm depth for anisotropic part
   # ##################################################
   # #                   # ROT 0 #                    #
   # #                   # IF WE DON'T START WITH 0 DEG      #
   # ##################################################
-    adpt_help.dw = 0.01
-    while overall_angle > -7.5:
-      T_rot_step = adpt_help.get_Tmat_RotateInY(direction=-1) # Positive Y-direction  
-      currentPose = rtde_help.getCurrentPose()
-      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
-      rtde_help.goToPoseAdaptive(targetPose, time=0.05)
+    # adpt_help.dw = 0.01
+    # while overall_angle > -12:
+    #   T_rot_step = adpt_help.get_Tmat_RotateInY(direction=-1) # Positive Y-direction  
+    #   currentPose = rtde_help.getCurrentPose()
+    #   targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_rot_step, currentPose)
+    #   rtde_help.goToPoseAdaptive(targetPose, time=0.05)
 
-      # Updating the overall angle
-      currentPose = rtde_help.getCurrentPose()
-      T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
-      T_overall = T_start_inv @ T_curr # local frame to the world frame
-      # expected_translation = T_curr[:3, 3] - T_start[:3, 3]
-      # computed_translation = T_overall[:3, 3] 
-      # print('expected translation: ', expected_translation)
-      # print('computed translation: ', computed_translation) 
-      # Angle relative to the start
-      overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
+    #   # Updating the overall angle
+    #   currentPose = rtde_help.getCurrentPose()
+    #   T_curr = adpt_help.get_Tmat_from_Pose(currentPose)
+    #   T_overall = T_start_inv @ T_curr # local frame to the world frame
+    #   # expected_translation = T_curr[:3, 3] - T_start[:3, 3]
+    #   # computed_translation = T_overall[:3, 3] 
+    #   # print('expected translation: ', expected_translation)
+    #   # print('computed translation: ', computed_translation) 
+    #   # Angle relative to the start
+    #   overall_angle = np.arccos(T_overall[2, 2]) * 180 / np.pi 
       
-      # Not needed here since we know the direction of rotation and want a final positive angle, will be useful in the future
-      if T_overall[2, 0] > 0:  # Check direction of rotation based on off-diagonal terms
-        overall_angle = -overall_angle
+    #   # Not needed here since we know the direction of rotation and want a final positive angle, will be useful in the future
+    #   if T_overall[2, 0] > 0:  # Check direction of rotation based on off-diagonal terms
+    #     overall_angle = -overall_angle
 
   # ##################################################
   # #                  # HORIZ 1 #                   #
   # #                  # edit line 156               #
   # ##################################################
-    # np.set_printoptions(precision=10) # Display 10 decimal places
-    # currentPose = rtde_help.getCurrentPose()
-    # #print("currentPose before loop: ", np.array([currentPose.pose.position.x, currentPose.pose.position.z]))
-    # current_x = currentPose.pose.position.x
-    # syncPub.publish(1)
-    # while currentPose.pose.position.x < current_x + 0.1:
-    #   currentPose = rtde_help.getCurrentPose()
-    #   #print("currentPose before: ", np.array([currentPose.pose.position.x, currentPose.pose.position.z]))
-    #   start_time = time.time()
-    #   targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_horiz_world, currentPose)
-    #   #print('time1', time.time()) # for calculating speed
-    #   rtde_help.goToPoseAdaptive(targetPose, time=0.5)
-    #   end_time = time.time()
-    #  # print('time2', time.time())
-    # syncPub.publish(2)
-
-    R_relative = T_overall[:3,:3] 
-    print('R_relative HORIZ 1')
-    formatted_rows = [" , ".join(f"{val:.6f}" for val in row) for row in R_relative] # Print in MATLAB-like format 
-    formatted_rows = ' ; '.join(formatted_rows)
-    print(formatted_rows) 
-    args.RotationMatrices.append(formatted_rows)
-    print("overall angle Horiz 1: ", overall_angle)
-    # Dealing with the horizontal motion in the local frame after rotation
-    t_horiz_local = np.linalg.inv(R_relative) @ tvec_horiz_world # translation VECTOR for horizontal motion
-    # t_horiz_local[1] = 0
-    # t_horiz_local[2] = 0
-    T_horiz_rotated[:3,3] = t_horiz_local
-
-    # giving a gap between rotation and next motion to lessen oscillations
-    rospy.sleep(1.5)
-   # FT_help.setNowAsBias()
-    args.ForceOffset2 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz] 
-
+    np.set_printoptions(precision=10) # Display 10 decimal places
     currentPose = rtde_help.getCurrentPose()
+    #print("currentPose before loop: ", np.array([currentPose.pose.position.x, currentPose.pose.position.z]))
     current_x = currentPose.pose.position.x
-    syncPub.publish(1) 
-    while currentPose.pose.position.x < current_x + 0.25:
+    syncPub.publish(1)
+    while currentPose.pose.position.x < current_x + 0.2:
       currentPose = rtde_help.getCurrentPose()
-      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_horiz_rotated, currentPose)
+      #print("currentPose before: ", np.array([currentPose.pose.position.x, currentPose.pose.position.z]))
+      start_time = time.time()
+      targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_horiz_world, currentPose)
+      #print('time1', time.time()) # for calculating speed
       rtde_help.goToPoseAdaptive(targetPose, time=0.5)
+      end_time = time.time()
+     # print('time2', time.time())
     syncPub.publish(2)
- ##################################3
+
+  #   R_relative = T_overall[:3,:3] 
+  #   print('R_relative HORIZ 1')
+  #   formatted_rows = [" , ".join(f"{val:.6f}" for val in row) for row in R_relative] # Print in MATLAB-like format 
+  #   formatted_rows = ' ; '.join(formatted_rows)
+  #   print(formatted_rows) 
+  #   args.RotationMatrices.append(formatted_rows)
+  #   print("overall angle Horiz 1: ", overall_angle)
+  #   # Dealing with the horizontal motion in the local frame after rotation
+  #   t_horiz_local = np.linalg.inv(R_relative) @ tvec_horiz_world # translation VECTOR for horizontal motion
+  #   # t_horiz_local[1] = 0
+  #   # t_horiz_local[2] = 0
+  #   T_horiz_rotated[:3,3] = t_horiz_local
+
+  #   # giving a gap between rotation and next motion to lessen oscillations
+  #   rospy.sleep(1.5)
+  #  # FT_help.setNowAsBias()
+  #   args.ForceOffset2 = [FT_help.offSetFx, FT_help.offSetFy, FT_help.offSetFz, FT_help.offSetTx, FT_help.offSetTy, FT_help.offSetTz] 
+
+  #   currentPose = rtde_help.getCurrentPose()
+  #   current_x = currentPose.pose.position.x
+  #   syncPub.publish(1) 
+  #   while currentPose.pose.position.x < current_x + 0.25:
+  #     currentPose = rtde_help.getCurrentPose()
+  #     targetPose = adpt_help.get_PoseStamped_from_T_initPose(T_horiz_rotated, currentPose)
+  #     rtde_help.goToPoseAdaptive(targetPose, time=0.5)
+  #   syncPub.publish(2)
+ #################################3
   # # # ##################################################
   # # # #                   # ROT 1 #                    #
   # # # #                   # edit lines 166, 184        #
@@ -569,7 +570,7 @@ def main(args):
   #   ################ CONCLUDING MOTION #####################################      
     dataLoggerEnable(False)
     # save data and clear the temporary folder
-    file_help.saveDataParams(args, appendTxt='_'+str(args.beta)+'HORIZONTAL'+'-trial-'+str(args.trialNum)+'-Shergill-Snout-Experiment')                          
+    file_help.saveDataParams(args, appendTxt='_'+str(args.beta)+'HORIZONTAL'+'-trial-'+str(args.trialNum)+'-Shergill')                          
     file_help.clearTmpFolder()        # clear the temporary folder
 
   #   # Print the final orientation

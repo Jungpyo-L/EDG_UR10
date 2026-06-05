@@ -165,7 +165,7 @@ def main(args):
   PoseA = rtde_help.getPoseObj(PositionA, OrientationA)
 
   # We descend into media. No rotation. 
-  PositionC = [0.41, -0.230, 0.27] # originally 0.27 for z, x = 0.2
+  PositionC = [0.41, -0.230, 0.35] # originally 0.27 for z, x = 0.2
   OrientationC = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi,'sxyz') # not moving it from the previous transformation
   PoseC = rtde_help.getPoseObj(PositionC, OrientationC) 
   #############################################################################################################################
